@@ -5,6 +5,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { sample, suggestedEdit, evidenceGates, type Manifest } from "./evidence";
 import type { PresentationState } from "../../apps/web/lib/presentation";
+import { ActivityFeed } from "./activity";
+import { TerminalView } from "./terminal-view";
 
 const arg = (name: string) => process.argv.find(s => s.startsWith(`--${name}=`))?.slice(name.length + 3);
 async function main() {
@@ -46,8 +48,12 @@ async function main() {
   let stop = false, verifiedAt = 0;
   const interrupt = () => { stop = true; manifest.reason = "operator_stopped_recording"; };
   process.on("SIGINT", interrupt); process.on("SIGTERM", interrupt);
+  const dashboardOffset = (Date.now() - started) / 1000;
   const page = await context.newPage();
   const video = page.video()!;
+  manifest.tracks = { dashboard: { video: "raw.webm", startedOffset: dashboardOffset } };
+  const terminal = process.argv.includes("--with-terminal") ? new TerminalView(working, started) : undefined;
+  let activity: ActivityFeed | undefined;
   let pending = Promise.resolve();
   const persist = () => writeFile(path.join(working, "manifest.json"), JSON.stringify(manifest, null, 2), { mode: 0o600 });
   const failure = (kind: string) => { manifest.interruptions.push({ offset: (Date.now() - started) / 1000, kind }); };
@@ -62,9 +68,11 @@ async function main() {
         if (!allowSimulation && state.mode !== "live") return;
         if (!/^RUN-[A-Z0-9-]+$/.test(state.id)) throw new Error("Unexpected run identifier.");
         manifest.runId = state.id; manifest.mode = state.mode;
+        if (terminal) activity = new ActivityFeed(state.id, event => terminal.add(event, state.mode));
         console.log(`CAPTURING ${state.id} (${state.mode}). Human participants act in their own sessions.`);
       }
       if (state.id !== manifest.runId || state.mode !== manifest.mode) { failure("run_changed"); manifest.reason = "run_changed"; stop = true; return; }
+      activity?.observe(state);
       const next = sample(state, (Date.now() - started) / 1000);
       if (manifest.samples.at(-1)?.revision !== state.revision || next.missionVerified) {
         manifest.samples.push(next);
@@ -79,19 +87,33 @@ async function main() {
   });
   page.on("requestfailed", req => { if (new URL(req.url()).pathname === "/api/state") failure("state_network_failure"); });
   try {
+    if (terminal) {
+      await terminal.open(browser);
+      manifest.tracks.terminal = { video: "terminal.webm", startedOffset: terminal.startedOffset };
+      const check = new ActivityFeed(initial.id, () => {});
+      await check.poll();
+      if (!check.summary().readersConnected) throw new Error("Terminal readers unavailable");
+    }
     await page.goto(`${origin}/present`, { waitUntil: "networkidle" });
     await page.getByTestId("presentation").waitFor();
-    console.log(`RECORDER ARMED at ${origin}/present. ${current ? "Observing the current run." : "Start a fresh Live contractor run in the dashboard."}`);
+    console.log(`RECORDER ARMED at ${origin}/present${terminal ? " + TERMINAL" : ""}. ${current ? "Observing the current run." : "Start a fresh Live contractor run in the dashboard."}`);
     console.log("Ctrl-C ends recording and saves footage; it does not stop incident execution.");
     await persist();
     while (!stop && Date.now() - started < max * 1000) {
+      if (activity) await activity.poll();
+      if (terminal) await terminal.tick();
       if (verifiedAt && Date.now() - verifiedAt >= 8000) { manifest.reason = "mission_verified"; break; }
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     if (manifest.reason === "recording") manifest.reason = "time_limit";
   } catch { failure("capture_failed"); manifest.reason = "capture_failed"; process.exitCode = 1; }
   finally {
     await pending;
+    if (activity) { await activity.poll(); manifest.activity = activity.summary(); }
+    if (terminal) {
+      try { await terminal.close(); if (terminal.failed) failure("terminal_write_failed"); }
+      catch { failure("terminal_capture_failed"); }
+    }
     manifest.finishedAt = new Date().toISOString();
     await context.close();
     await video.saveAs(path.join(working, "raw.webm"));
@@ -99,6 +121,13 @@ async function main() {
     process.off("SIGINT", interrupt); process.off("SIGTERM", interrupt);
     const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path.join(working, "raw.webm")], { encoding: "utf8" });
     manifest.duration = Number(probe.stdout.trim()) || (Date.now() - started) / 1000;
+    manifest.tracks.dashboard!.duration = manifest.duration;
+    if (manifest.tracks.terminal) {
+      const p = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path.join(working, "terminal.webm")], { encoding: "utf8" });
+      const duration = Number(p.stdout?.trim());
+      if (!duration) failure("terminal_video_unavailable");
+      manifest.tracks.terminal.duration = duration || 0;
+    }
     await persist();
     await writeFile(path.join(working, "edit.json"), JSON.stringify(suggestedEdit(manifest, manifest.duration), null, 2));
     await writeFile(path.join(working, "evidence.json"), JSON.stringify(evidenceGates(manifest), null, 2));

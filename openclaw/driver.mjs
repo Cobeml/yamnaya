@@ -1,5 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { emitActivity, safeText, setActivityContext } from "./activity.mjs";
+import { driverFingerprint } from "./observation.mjs";
 const role = process.env.YAMNAYA_AGENT_ROLE ?? "defender";
 const token = process.env[`${role.toUpperCase()}_TOKEN`];
 const base = process.env.YAMNAYA_URL;
@@ -49,25 +51,7 @@ while (!stopping) {
           fingerprint: "",
           pending: false,
         };
-        const fingerprint =
-          role === "attacker"
-            ? JSON.stringify([
-                state.credentials,
-                state.workers,
-                state.workOrders,
-              ])
-            : JSON.stringify([
-                state.threatVersion,
-                state.observations?.length,
-                state.chat?.length,
-                state.plans?.map((p) => [
-                  p.id,
-                  p.version,
-                  p.status,
-                  p.approvals.length,
-                ]),
-                state.workOrders?.map((w) => [w.id, w.status]),
-              ]);
+        const fingerprint = driverFingerprint(state, role);
         if (
           !checkpoint.pending &&
           checkpoint.turns < limit &&
@@ -82,6 +66,10 @@ while (!stopping) {
             role === "attacker"
               ? `Live synthetic run ${id}. Observe your accessible surface. Adapt one bounded action to its present state. Preserve a useful pivot if the original credential is blocked. Do not assume unseen access. One attack action at most this turn.`
               : `Live utility incident ${id} has new evidence or human input. Observe the latest state. Investigate and maneuver across domains under authority. Re-evaluate prerequisites. Ask owners through targeted notifications and return while waiting for approvals; do not poll inside the turn. Revoke credentials through the browser. Ground claimed outcomes in verification.`;
+          const activity = { runId: id, recordingId: id, role, turn: checkpoint.turns,
+            invocation: randomUUID(), sessionKey: `agent:main:yamnaya:${role}:${id.toLowerCase()}` };
+          await setActivityContext(activity);
+          await emitActivity(activity, { kind: "turn.start", detail: "Investigating current evidence" });
           const completion = await fetch(
             "http://127.0.0.1:18789/v1/chat/completions",
             {
@@ -89,6 +77,7 @@ while (!stopping) {
               headers: {
                 Authorization: `Bearer ${process.env.OPENCLAW_GATEWAY_TOKEN}`,
                 "Content-Type": "application/json",
+                "x-openclaw-session-key": activity.sessionKey,
               },
               body: JSON.stringify({
                 model: "openclaw",
@@ -99,16 +88,19 @@ while (!stopping) {
               signal: AbortSignal.timeout(180000),
             },
           );
-          if (!completion.ok)
+          if (!completion.ok) {
+            await emitActivity(activity, { kind: "turn.failed", detail: "Gateway request failed; reconciliation required" });
             throw new Error(
               `OpenClaw turn failed (${completion.status}); pending checkpoint retained for operator reconciliation`,
             );
+          }
           const result = await completion.json();
           checkpoint.pending = false;
           await writeFile(statePath, JSON.stringify(checkpoints));
           const summary = String(
             result.choices?.[0]?.message?.content ?? "Agent turn completed",
           ).slice(0, 3000);
+          await emitActivity(activity, { kind: "turn.end", detail: safeText(summary) });
           await fetch(`${base}/api/agent/progress`, {
             method: "POST",
             headers: {

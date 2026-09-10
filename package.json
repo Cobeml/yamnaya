@@ -19,6 +19,8 @@
     "demo:record": "tsx scripts/demo/record.ts",
     "demo:edit": "tsx scripts/demo/edit.ts",
     "demo:run": "tsx scripts/demo/run.ts",
+    "demo:terminal": "tsx scripts/demo/terminal.ts",
+    "demo:check-terminal": "tsx scripts/demo/check-terminal.ts",
     "worker": "tsx services/worker/index.ts",
     "scenario": "tsx scripts/scenario.ts",
     "evaluate": "tsx scripts/evaluate.ts",

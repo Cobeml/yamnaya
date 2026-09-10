@@ -36,11 +36,13 @@ export interface Manifest {
   timing: string;
   samples: Sample[];
   interruptions: { offset: number; kind: string }[];
+  tracks?: Partial<Record<"dashboard" | "terminal", { video: string; startedOffset: number; duration?: number }>>;
+  activity?: { gaps: number; unmatched: number; readersConnected: boolean; defenderTools: boolean; attackerTools: boolean };
 }
 export interface Edit {
   runId: string;
   preview: boolean;
-  segments: { title: string; start: number; end: number; seconds: number; source?: string }[];
+  segments: { title: string; start: number; end: number; seconds: number; source?: string; track?: "dashboard" | "terminal" }[];
 }
 
 export function sample(state: PresentationState, offset: number, observedAt = new Date().toISOString()): Sample {
@@ -78,6 +80,7 @@ export function evidenceGates(manifest: Manifest) {
     verified: last?.missionVerified === true,
     continuityObserved: !!first && !!last && last.amiReads > first.amiReads && last.healthyBatches > first.healthyBatches && samples.every(s => s.activeWorkers > 0),
     uninterrupted: manifest.interruptions.length === 0,
+    ...(manifest.tracks?.terminal ? { terminalComplete: !!manifest.activity && manifest.activity.gaps === 0 && manifest.activity.unmatched === 0 && manifest.activity.readersConnected && manifest.activity.defenderTools && manifest.activity.attackerTools } : {}),
   };
 }
 
@@ -90,7 +93,12 @@ export function validateEdit(manifest: Manifest, edit: Edit, duration: number) {
   for (const s of edit.segments) {
     if (![s.start, s.end, s.seconds].every(Number.isFinite) || s.start < 0 || s.end <= s.start || s.seconds <= 0 || s.seconds > 60)
       throw new Error("Invalid clip timing.");
-    if (!s.source && (s.end > duration + 0.04 || s.start < previous)) throw new Error("Source clips must fit the recording and retain chronological order.");
+    if (s.track && s.source) throw new Error("Choose a named track or an external source, not both.");
+    if (s.track && !["dashboard", "terminal"].includes(s.track)) throw new Error("Unknown recording track.");
+    const track = manifest.tracks?.[s.track ?? "dashboard"];
+    if (s.track === "terminal" && !track) throw new Error("This take has no terminal track.");
+    const offset = track?.startedOffset ?? 0;
+    if (!s.source && (s.start < offset || s.end > offset + (track?.duration ?? duration) + 0.04 || s.start < previous)) throw new Error("Source clips must fit the recording and retain chronological order.");
     if (!s.source) previous = s.start;
     if (!/^[\w .,()&:+-]{1,90}$/.test(s.title)) throw new Error("Use a short plain-text clip title.");
   }
@@ -110,6 +118,6 @@ export function suggestedEdit(manifest: Manifest, duration: number): Edit {
   return { runId: manifest.runId!, preview: false, segments: cues.map((cue, i) => {
     const start = Math.min(Math.max(previous, cue - (i ? 1 : 0)), Math.max(0, duration - 1));
     previous = start;
-    return { title: titles[i], start, end: Math.min(duration, start + lengths[i]), seconds: lengths[i] };
+    return { title: titles[i], start, end: Math.min(duration, start + lengths[i]), seconds: lengths[i], ...(manifest.tracks?.terminal && [1, 2, 4].includes(i) ? { track: "terminal" as const } : {}) };
   }) };
 }

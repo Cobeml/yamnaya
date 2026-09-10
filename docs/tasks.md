@@ -36,6 +36,18 @@ The authenticated `/present` view is deployed with four domain panels, current p
 
 Checks completed: 33 unit/regression tests, typecheck, lint, Docker and Vercel builds, both new presentation browser tests, and the existing three isolated recovery/browser tests. A real 14-second camera preview was captured and exported from the isolated simulation. Its label explicitly identifies it as a preview, not a live recovery. The hosted API authentication checks and Docker OpenClaw browser smoke test also pass after deployment. Full participant-assisted live recording is the next gate.
 
+### Agent and terminal recording
+
+Added session/turn-correlated OpenClaw tool observers, including native browser calls; host-only terminal collection; published plan rationale and executor/approval/check projections; and a synchronized terminal track in `demo:record --with-terminal`. The read-only monitor is also available through `demo:terminal`. Capture metadata is allowlisted and text is sanitized before recording; browser sign-in links, snapshots, raw results, and hidden reasoning are not captured. Runtime agents retain their existing capabilities and cannot access the combined stream.
+
+Named dashboard/terminal tracks share the recording clock, retain separate raw videos and structured/text activity, and are selectable in the editor. Existing dashboard-only takes remain compatible. Missing/unmatched tool activity or reader gaps prevent a terminal take from being labeled a successful live final. Recorder health checks run before arming. `demo:check-terminal` exercises actual model tools only on a simulation under separate smoke capture IDs.
+
+Validation: 38 unit/regression tests, typecheck and lint pass; both rebuilt OpenClaw containers are healthy. Actual Astra smoke requests captured two defender calls (observation and browser) and one attacker observation with matched starts/completions and no gaps. The authenticated Chromium sign-in smoke also passes. A synchronized dashboard/terminal camera take was captured on the unchanged hosted simulation. A separate live observation-only capture check recorded actual tool starts and returns into video, structured events, and terminal text; its 13.47-second labeled preview exported successfully with FFprobe verification (1920×1080, H.264, 30 fps, yuv420p, silent). Terminal screenshots were visually inspected. No live attack, Slack delivery, plan approvals, or incident PR has been initiated by these checks.
+
+The editor also passed a two-track dashboard/terminal export check (7.00 seconds, labeled preview). No application API, database, or Vercel deployment change was needed for terminal capture; the instrumentation runs in the two rebuilt Docker agent containers and the host recorder.
+
+Limitations: explanations are the agent's published statements, not hidden reasoning; action receipts and independent checks remain separate. Browser video start/frame timing and polling can cause small sync differences, so review the visible UTC clocks. Full participant-assisted live recording remains pending readiness.
+
 ### Mission checks
 
 - TypeScript, lint, production build and invariant tests.
@@ -46,6 +58,12 @@ Checks completed: 33 unit/regression tests, typecheck, lint, Docker and Vercel b
 - Six deterministic scenarios: contractor, pivot, reserve unavailable, shared reserve, benign maintenance and injection. These are fixture checks, not live model benchmarks.
 
 ## Next credential-dependent gates
+
+### First participant-assisted live take: RUN-828589B0
+
+Live recording captured the attacker deploying the compromised mapping, altering work orders and forging a support claim; the defender investigated, quarantined three SDPs, assigned field checks, revised/rehearsed plans, and obtained actual human approvals through the dashboard. Stakeholder statements and the three operations field confirmations arrived through Slack. Healthy AMI and unaffected processing continued. Browser navigation initially timed out; a subsequent operator observation/sign-in probe passed. The operator supplied that diagnostic for a human to relay, without revoking credentials or granting plan approvals.
+
+The first approved execution failed before any applied step because the GitHub connector requested `/repos/owner/repo/` instead of `/repos/owner/repo`. Read-only probes confirmed 404 versus 200 with the same credentials; repository, default-branch and PR read access passed from both host and executor. Fixed URL construction, tightened the existing ancestry/retry regression to reproduce GitHub's strict endpoint behavior, and rebuilt/redeployed the executor after that test passed. The take retains an operator-interventions sidecar; its exports are labeled OPERATOR ASSISTED and must not be represented as unassisted recovery. Full mission recovery remains unverified at this point.
 
 1. Extend the successful Astra read-tool smoke checks into an actual OpenClaw plan → browser → recovery trial.
 2. Verify Slack notification delivery, exact plan/version approvals, field confirmation, and unauthorized-user rejection with the configured channel/personas.

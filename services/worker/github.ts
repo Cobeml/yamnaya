@@ -6,7 +6,7 @@ import type { EffectProof } from "../../packages/core/src/policy";
 
 async function github(route: string, init: RequestInit = {}) {
   const response = await fetch(
-    `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/${route}`,
+    `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}${route ? `/${route}` : ""}`,
     {
       ...init,
       headers: {

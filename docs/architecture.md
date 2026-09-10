@@ -34,6 +34,8 @@ The driver resumes one conversation per role/run when relevant evidence, access 
 
 Slack Socket Mode belongs to the executor. Authenticated Slack user IDs become human actors in the backend, independently of the model. The defender sees their statements and approval changes on its next turn. A claim inside a message never changes a role or approval policy.
 
+Recording instrumentation is an observation channel outside utility authority. The driver uses an explicit stable OpenClaw session per role/run; plugin tool hooks match that session and write sanitized call metadata to the role's existing private state volume. A host-only terminal collector combines those records with existing API receipts and published plan rationales. It neither returns combined telemetry to the agents nor alters their tool permissions. Browser tickets, snapshots, raw tool results, provider reasoning fields, and credentials are excluded from recording output. A recording receipt is never a recovery receipt.
+
 ## Utility fidelity
 
 The interview's integration shape remains: utility sources own customer/service-point/asset/work information; CSV or `SDPSyncMessage/Payload/Record` XML enters a normalized pipeline; source mapping, path resolution, SOR filtering, value mapping, premerge, merge, derivation, postmerge, cache invalidation, save, and status/exception stages are retained in transaction evidence. Effective dates, meter MRIDs, outgoing meter end dates, and source provenance drive relationship behavior. Bulk AMI reads are separate.

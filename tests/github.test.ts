@@ -38,8 +38,11 @@ it("branches repair from the incident commit and reconciles a retry without a du
           result: { passed: true, tests: 32 },
           sourceDigest: "test-receipt",
         });
+      // GitHub's repository endpoint is strict about the trailing slash.
+      // A 200 here used to mask the live connector's 404 before any branch creation.
+      if (url.pathname === "/repos/demo/repo") return reply({ default_branch: "main" });
+      if (url.pathname === "/repos/demo/repo/") return reply({ message: "Not Found" }, 404);
       const route = url.pathname.replace("/repos/demo/repo/", "");
-      if (route === "") return reply({ default_branch: "main" });
       if (route.startsWith("git/ref/heads/")) {
         const sha = heads.get(decodeURIComponent(route.slice(14)));
         return sha

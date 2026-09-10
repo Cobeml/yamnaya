@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { registerActivity } from "../activity.mjs";
+import { agentState } from "../observation.mjs";
 const object = (properties) => ({
   type: "object",
   properties,
@@ -9,6 +11,7 @@ export default {
   id: "yamnaya",
   name: "Yamnaya mission tools",
   register(api) {
+    registerActivity(api);
     const role = process.env.YAMNAYA_AGENT_ROLE ?? "defender";
     const token = process.env[`${role.toUpperCase()}_TOKEN`];
     const base = process.env.YAMNAYA_URL;
@@ -71,14 +74,24 @@ export default {
     }
     tool(
       "yamnaya_observe",
-      "Read current incident state and source evidence, the operational ontology, or the capability catalog.",
+      "Read bounded current state, terrain, capabilities, or an individual artifact/observation/transaction using resource_id. State contains metadata; inspect an artifact to read its mapping source. Older history remains stored on the server.",
       object({
         resource: {
           type: "string",
-          enum: ["state", "terrain", "capabilities"],
+          enum: ["state", "terrain", "capabilities", "artifact", "observation", "transaction"],
         },
+        resource_id: string,
       }),
-      (p) => call(p.resource ?? "state"),
+      async (p) => {
+        if (["terrain", "capabilities"].includes(p.resource)) return call(p.resource);
+        const state = await call("state");
+        if (!p.resource || p.resource === "state") return agentState(state);
+        const collection = { artifact: "artifacts", observation: "observations", transaction: "transactions" }[p.resource];
+        const record = state[collection]?.find(item => item.id === p.resource_id);
+        if (!record) throw new Error("Record not found in the authorized view");
+        if (JSON.stringify(record).length > 48000) throw new Error("Record exceeds the observation bound");
+        return { runId: state.id, revision: state.revision, record };
+      },
     );
     tool(
       "yamnaya_standing_action",
