@@ -281,6 +281,7 @@ export default function Console() {
             <strong>{title}</strong>
           </div>
           <div className="topbar-right">
+            <a href="/present" className="text-button" target="_blank" rel="noreferrer">Recording view <ArrowRight size={14} /></a>
             <span className="mono clock">
               <Radio size={13} />
               {state ? time(state.clock) : "--:--:--"} UTC <small>SIM</small>

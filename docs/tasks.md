@@ -6,7 +6,7 @@ The local implementation includes the utility model, source adapters, four-domai
 
 TypeScript, ESLint and the Docker production build pass. All 29 unit/regression tests, three Playwright tests and six deterministic scenario evaluations pass. The browser recovery reaches 9/9 mission checks using the actual worker and isolated mapper service. Desktop/mobile screenshots were inspected. The OpenClaw observation → one-use sign-in → Chromium snapshot smoke test passes without a model call; the attacker gateway rejects browser, shell and defender tools. Incident state, plans, messages and audit evidence retain the same digest after web/worker/agent recreation. GitHub ancestry and retry behavior are tested with a mocked connector; no live PR has been created.
 
-CI defines the unit/build/evaluation and Docker browser suites. The corrected browser job was reproduced in an isolated Docker project with generated credentials; the updated workflow still needs committing/pushing and a GitHub run. [Verification record](verification.md) lists earlier local evidence and limits.
+CI defines the unit/build/evaluation and Docker browser suites. The user pushed the deployment/CI fixes and confirmed the GitHub Action succeeded. [Verification record](verification.md) lists earlier local evidence and limits.
 
 ## Credential checks completed on 2026-09-10
 
@@ -27,6 +27,16 @@ These checks used observation tools and authenticated read-only integration prob
 The hosted run remains a clean monitoring simulation. Full recovery was tested on isolated local infrastructure, not on the credential-enabled hosted runtime. Live Slack delivery, corrective PR creation, approval conversations, and complete agentic recovery remain the next workflow gates. No extra GitHub Actions secrets are needed for current CI or the connected Vercel Git integration; deployment.md contains the full credential breakdown.
 
 ## Acceptance checks
+
+### Recording implementation
+
+The authenticated `/present` view is deployed with four domain panels, current plan/approval state, an audit feed, continuity counters, and independent mission checks. It uses existing read APIs; no authority or database schema changes were needed. It distinguishes live agents from simulation/replay, rejects stale approval display, pauses on a pinned-run mismatch, and labels connection loss.
+
+`pnpm demo:record` records actual 1920×1080 Chromium video with run-bound, wall-clock state/event markers. It authenticates before recording and blocks browser mutation requests. It creates edit suggestions and preserves interrupted/incomplete takes. `pnpm demo:edit` renders labeled clips and silent MP4 exports with FFprobe verification; it refuses a live-final label without the recorded live recovery evidence. `pnpm demo:run` provides explicit presenter start/stop commands and a read-only status summary; it cannot approve plans. [Recording runbook](recording.md) contains participant instructions, commands, shot timing, narration, and Slack-insert guidance.
+
+Checks completed: 33 unit/regression tests, typecheck, lint, Docker and Vercel builds, both new presentation browser tests, and the existing three isolated recovery/browser tests. A real 14-second camera preview was captured and exported from the isolated simulation. Its label explicitly identifies it as a preview, not a live recovery. The hosted API authentication checks and Docker OpenClaw browser smoke test also pass after deployment. Full participant-assisted live recording is the next gate.
+
+### Mission checks
 
 - TypeScript, lint, production build and invariant tests.
 - Contractor recovery: exposed access denied, mapping tested/promoted, relationships/cache repaired, field confirmed, queue reconciled and unaffected work preserved.
