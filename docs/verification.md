@@ -17,4 +17,12 @@ Screenshots: `runtime/screenshots/verified-overview.png`, `runtime/screenshots/m
 
 The utility and OpenClaw gateway health endpoints return 200. Both agent containers, PostgreSQL, web and code lab are healthy; the worker is running. The OpenClaw image is pinned to official 2026.9.3 browser content, and the configured model is `openai/gpt-6-astra` with the explicit OpenClaw runtime.
 
-No actual model request has been made. `OPENAI_API_KEY`, GitHub token and Slack tokens/channel/persona IDs are absent. No real Slack delivery, real corrective PR, Vercel deployment, Neon instance, or live model trial is claimed. Model selection in configuration and no-model tool smoke tests do not prove live Astra access or agentic performance. The deterministic shutdown/pivot comparisons are fixture tests, not a measured live-agent benchmark.
+## Credential-backed checks
+
+After credentials were supplied, all preflight fields were configured and Astra account catalog access returned HTTP 200. Two real requests through the OpenClaw Chat Completions gateway passed: the defender used its observation surface and returned the current run ID with 20 service points (about 11 seconds); the attacker returned the same run ID with its permitted three-point view (about 10 seconds). The requests were constrained to observation only. The model remained `openai/gpt-6-astra` in the explicit OpenClaw configuration, with no fallback configured.
+
+Slack bot authentication and app Socket Mode authorization returned HTTP 200, the worker connected through Socket Mode, and all three persona identifiers passed distinct-ID validation. GitHub repository access returned HTTP 200 with push permission reported. The configured PostgreSQL connection passed `SELECT 1`. No authentication or rate-limit failure appeared in the sanitized runtime diagnostics. The existing authenticated Chromium smoke check also passed after reloading credentials.
+
+Credential values and `.env` contents were not displayed or inspected by the assistant. Programs loaded credentials internally for their intended requests and emitted allowlisted status fields. Results are retained in `runtime/verification/integrations.json` and the agent containers' `yamnaya-verification` directories.
+
+No real Slack delivery, corrective PR write, Vercel deployment, or hosted Neon provisioning was performed by these credential checks. A successful model observation turn does not establish full agentic recovery performance. Human Slack acknowledgements/approvals and live corrective PR execution remain to be tested. The deterministic shutdown/pivot comparisons remain fixture tests, not a measured live-agent benchmark.

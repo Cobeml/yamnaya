@@ -20,6 +20,8 @@ The local stack works without external keys in **Simulation** mode. Both OpenCla
 
 Follow [the demo runbook](docs/demo-runbook.md) for the complete incident, and [deployment instructions](docs/deployment.md) for Astra, Slack, GitHub, Vercel, and Neon. Those live integrations require your accounts and credentials; the repository does not provision them automatically.
 
+After updating credentials, recreate the relevant containers to reload them. Run `pnpm exec tsx scripts/integration-check.ts` for sanitized Slack/GitHub/database checks, `pnpm exec tsx scripts/runtime-diagnostics.ts` for fixed runtime status flags, and `docker compose exec -T openclaw-agent node /opt/yamnaya/model-smoke.mjs` for one paid Astra observation turn. Substitute `attacker-agent` to check its restricted view. These commands do not print secret values. The integration check sends no Slack message by default; its explicit `--slack-message` option tests actual channel delivery when desired.
+
 ## Validate
 
 ```bash
