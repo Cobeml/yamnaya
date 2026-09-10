@@ -28,6 +28,8 @@ After finding the actual message, record its `ts` in that marker as `{"pending":
 
 Gateway heartbeats and cron are disabled; the persisted driver owns scheduled mission turns. Stop controls reject subsequent utility mutations, although a model request already in flight can still finish. For immediate shutdown of model requests, stop the two agent containers.
 
+After container recreation, Chromium may clear stale profile locks on its first start and return a transient timeout. The no-model smoke test retries browser startup once; the subsequent navigation and snapshot must still pass. Do not interpret that initial timeout as a completed browser action.
+
 ## Reset and retained evidence
 
 Use the commander Reset control for a new synthetic run. Stale tool calls carry the previous run ID and are rejected. Use `docker compose --profile local --profile agents stop` to preserve all volumes. Removing volumes destroys local incidents and receipts and is not required for normal development.
