@@ -103,3 +103,9 @@ A silent 60-second first cut exported successfully to `export-2026-09-10T20-35-4
 Updated the three participant labels to Cobe (security), Megi (operations), and Daniel (platform). A shared deterministic name map supplies new fixtures and the current state/ontology views, so existing snapshots display the requested names without resetting the incident or rewriting audit messages. The overview sponsor label now reads the personnel register. Role IDs, Slack user mappings, credentials and approval policy are unchanged.
 
 Validation: TypeScript, ESLint and 26 existing core/containment/presentation/observation regressions pass. Deployed to production and verified the authenticated state/terrain APIs, all three personnel cards and the sponsor label with a read-only browser check. The existing RUN-FE2668DD remains stopped. No database migration or live-run reset was needed.
+
+### Dashboard clock
+
+The top-right dashboard clock now shows current UTC wall time and updates every second, independently of simulation state and API polling. Its timer is isolated in a small component and cleaned up on unmount; initial rendering uses a placeholder to avoid hydration mismatches. Audit timestamps and the deterministic simulation clock retain their existing meaning. The displayed wall time follows the viewer's device clock.
+
+Validation: TypeScript, ESLint and the Vercel production build pass. A read-only check on the hosted dashboard confirmed current UTC time advances every second with both frozen state responses and failed state requests, with no browser errors. Screenshot: `runtime/screenshots/dashboard-clock.png`. No incident reset or backend mutation was required.

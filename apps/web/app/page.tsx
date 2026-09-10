@@ -68,6 +68,22 @@ const stages = [
 ];
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-US", { hour12: false, timeZone: "UTC" });
+function DashboardClock() {
+  const [now, setNow] = useState<string>();
+  useEffect(() => {
+    const tick = () => setNow(new Date().toISOString());
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <span className="mono clock" title="Current time (UTC)">
+      <Radio size={13} aria-hidden="true" />
+      <time dateTime={now}>{now ? now.slice(11, 19) : "--:--:--"} UTC</time>
+      <small>WALL</small>
+    </span>
+  );
+}
 function Pill({
   children,
   tone = "",
@@ -287,10 +303,7 @@ export default function Console() {
           </div>
           <div className="topbar-right">
             <a href="/present" className="text-button" target="_blank" rel="noreferrer">Recording view <ArrowRight size={14} /></a>
-            <span className="mono clock">
-              <Radio size={13} />
-              {state ? time(state.clock) : "--:--:--"} UTC <small>SIM</small>
-            </span>
+            <DashboardClock />
             <button
               className="icon-button"
               aria-label="Notifications"
