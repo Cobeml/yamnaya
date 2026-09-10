@@ -1,0 +1,20 @@
+{
+  "id": "yamnaya",
+  "name": "Yamnaya mission tools",
+  "description": "Bounded utility observations, plans, and actions. Authorization is enforced by the utility backend.",
+  "contracts": {
+    "tools": [
+      "yamnaya_observe",
+      "yamnaya_standing_action",
+      "yamnaya_plan",
+      "yamnaya_admin_browser",
+      "yamnaya_red_observe",
+      "yamnaya_red_action"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false
+  }
+}
