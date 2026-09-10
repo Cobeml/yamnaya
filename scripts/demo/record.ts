@@ -96,13 +96,15 @@ async function main() {
     }
     await page.goto(`${origin}/present`, { waitUntil: "networkidle" });
     await page.getByTestId("presentation").waitFor();
-    console.log(`RECORDER ARMED at ${origin}/present${terminal ? " + TERMINAL" : ""}. ${current ? "Observing the current run." : "Start a fresh Live contractor run in the dashboard."}`);
+    console.log(`RECORDER ARMED at ${origin}/present${terminal ? " + TERMINAL" : ""}. ${current ? "Observing the current run." : "Start a fresh live run with demo:run --start (simple credential leak)."}`);
     console.log("Ctrl-C ends recording and saves footage; it does not stop incident execution.");
     await persist();
     while (!stop && Date.now() - started < max * 1000) {
       if (activity) await activity.poll();
       if (terminal) await terminal.tick();
-      if (verifiedAt && Date.now() - verifiedAt >= 8000) { manifest.reason = "mission_verified"; break; }
+      if (verifiedAt && Date.now() - verifiedAt >= 8000 && (!activity || activity.summary().unmatched === 0 || Date.now() - verifiedAt >= 45000)) {
+        manifest.reason = "mission_verified"; break;
+      }
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     if (manifest.reason === "recording") manifest.reason = "time_limit";
