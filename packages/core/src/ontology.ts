@@ -1,4 +1,5 @@
 import type { Run } from "./contracts";
+import { displayPeople } from "./people";
 
 export function terrain(run: Run) {
   const objects: {
@@ -50,7 +51,7 @@ export function terrain(run: Run) {
       domain: "physical",
       properties: { ...m },
     })),
-    ...run.people.map((p) => ({
+    ...displayPeople(run.people).map((p) => ({
       id: p.id,
       type: "Principal",
       label: p.name,
@@ -168,7 +169,7 @@ export function defenderView(run: Run) {
   void _physical;
   void _scenario;
   void _idempotency;
-  return { ...visible, mission: run.scenario === "credential-leak" ? {
+  return { ...visible, people: displayPeople(visible.people), mission: run.scenario === "credential-leak" ? {
     kind: "containment" as const,
     objective: "Disable exposed contractor access after security and platform approve. Hold affected data and digital field dispatch after operations approves. Verify denial, quarantine and healthy continuity. Leave held work for review.",
   } : { kind: "recovery" as const, objective: "Restore trustworthy meter operations across all four domains." } };

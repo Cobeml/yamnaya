@@ -1,5 +1,6 @@
 import type { Run, Scenario, Mode, Association } from "./contracts";
 import { approvedSource, compromisedSource } from "./mapping";
+import { participantNames } from "./people";
 
 export function seedRun(
   id: string,
@@ -68,21 +69,21 @@ export function seedRun(
     people: [
       {
         id: "security",
-        name: "Alex Morgan",
+        name: participantNames.security,
         role: "Incident commander",
         team: "Security",
         available: true,
       },
       {
         id: "platform",
-        name: "Jordan Chen",
+        name: participantNames.platform,
         role: "Platform engineer · contractor sponsor",
         team: "Platform",
         available: true,
       },
       {
         id: "operations",
-        name: "Sam Rivera",
+        name: participantNames.operations,
         role: "Meter operations lead",
         team: "Meter operations",
         available: true,

@@ -429,7 +429,7 @@ export default function Console() {
                           className="n-person"
                           label="PERSONNEL"
                           title="Contractor access"
-                          text="Sponsor: Jordan Chen"
+                          text={`Sponsor: ${state.people.find(p => p.id === "platform")?.name ?? "Platform"}`}
                           icon={<Users size={20} />}
                           alert={state.credentials.some(
                             (c) => c.leakProven && c.status === "active",
