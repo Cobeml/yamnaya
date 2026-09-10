@@ -1,12 +1,3 @@
-o
-sition should be more precise:
-
-> Yamnaya changes the conditions under which an adversary can affect a mission, rather than relying exclusively on strengthening a fixed perimeter.
-
-GPT-6 can serve as a reasoning and execution component. OpenAI describes GPT-6 Astra as capable in cybersecurity, software engineering, and computer use; those capabilities do not themselves establish the safety or reliability of a particular infrastructure integration. Yamnaya must supply the operational context, authorization, constrained tools, and independent verification.
-
-The Palantir-inspired element is an **operational ontology**, not merely a knowledge graph. Palantir’s ontology combines objects, properties, and relationships with actions, functions, and g# Yamnaya
-
 ## Mission-Oriented Cyber Maneuver Methodology and Ontology
 
 **Proposed architecture · Version 0.1**
