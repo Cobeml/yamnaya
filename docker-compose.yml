@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  openclaw-agent:
+    build: .
+    container_name: openclaw-sandbox
+    # Restrict resources so the agent cannot overwhelm the host machine
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+    # Map the workspace directory on the host to the container
+    volumes:
+      - ./workspace:/home/openclaw/workspace
+    # Expose the VNC port to the host so you can view the agent's screen
+    ports:
+      - "5900:5900"
+    # The default command is handled by the Dockerfile (supervisord)
+    restart: unless-stopped
+    # Define a custom network for future database isolation
+    networks:
+      - openclaw-net
+
+# Define a custom bridge network. 
+# Later, you can add services like postgres or redis here, 
+# and the agent will be able to access them, but they can remain isolated from the host.
+networks:
+  openclaw-net:
+    driver: bridge
