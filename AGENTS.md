@@ -16,6 +16,6 @@ Use small dependency-ordered tasks; update docs/tasks.md with tests and limitati
 
 ## Commands
 
-`pnpm setup`, `pnpm db:migrate`, `pnpm dev`, `pnpm worker`, `pnpm test`, `pnpm test:e2e`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm evaluate`, `pnpm preflight`.
+`pnpm run setup`, `pnpm db:migrate`, `pnpm dev`, `pnpm worker`, `pnpm test`, `pnpm test:e2e`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm evaluate`, `pnpm preflight`.
 
 Use invariant and regression tests for transaction semantics, access control, approvals, replay, and partial execution. Do not write tests that merely repeat constants. A green command receipt is not verified recovery. Report missing credentials and unavailable live integrations accurately.

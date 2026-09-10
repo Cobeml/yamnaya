@@ -28,7 +28,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm setup
+      # `pnpm setup` is a pnpm built-in; explicitly run our package script.
+      # It generates disposable local credentials. No repository secrets required.
+      - run: pnpm run setup
       - run: pnpm exec playwright install --with-deps chromium
       - run: docker compose --profile local up -d --build --wait
       - run: pnpm test:e2e

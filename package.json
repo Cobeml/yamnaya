@@ -15,6 +15,7 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
     "setup": "tsx scripts/setup.ts",
     "db:migrate": "tsx scripts/migrate.ts",
+    "deploy:env": "tsx scripts/vercel-env.ts",
     "worker": "tsx services/worker/index.ts",
     "scenario": "tsx scripts/scenario.ts",
     "evaluate": "tsx scripts/evaluate.ts",

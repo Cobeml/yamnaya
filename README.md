@@ -10,7 +10,7 @@ Prerequisites: Docker Compose, Node 22.19+ for host development, and pnpm 10.32.
 
 ```bash
 npm exec --yes --package=pnpm@10.32.1 -- pnpm install --frozen-lockfile
-npm exec --yes --package=pnpm@10.32.1 -- pnpm setup
+npm exec --yes --package=pnpm@10.32.1 -- pnpm run setup
 docker compose --profile local --profile agents up -d --build
 ```
 
@@ -18,7 +18,7 @@ Open **http://localhost:3100**. Select a role in **Sign in** and use its generat
 
 The local stack works without external keys in **Simulation** mode. Both OpenClaw gateways start, but their model drivers wait for an API key and a **Live** run. Manual candidate buttons are explicitly labeled; simulation recovery is not evidence of live model performance.
 
-Follow [the demo runbook](docs/demo-runbook.md) for the complete incident, and [deployment instructions](docs/deployment.md) for Astra, Slack, GitHub, Vercel, and Neon. Those live integrations require your accounts and credentials; the repository does not provision them automatically.
+The hosted dashboard is **https://yamnaya.vercel.app**, backed by Neon with the worker and OpenClaw on this machine. Follow [the demo runbook](docs/demo-runbook.md) for the complete incident, and [deployment instructions](docs/deployment.md) for the hosted Docker command, credential placement, and CI setup.
 
 After updating credentials, recreate the relevant containers to reload them. Run `pnpm exec tsx scripts/integration-check.ts` for sanitized Slack/GitHub/database checks, `pnpm exec tsx scripts/runtime-diagnostics.ts` for fixed runtime status flags, and `docker compose exec -T openclaw-agent node /opt/yamnaya/model-smoke.mjs` for one paid Astra observation turn. Substitute `attacker-agent` to check its restricted view. These commands do not print secret values. The integration check sends no Slack message by default; its explicit `--slack-message` option tests actual channel delivery when desired.
 

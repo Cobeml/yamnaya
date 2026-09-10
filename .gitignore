@@ -47,8 +47,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -159,3 +159,5 @@ runtime/
 playwright-report/
 test-results/
 *.tsbuildinfo
+.vercel/
+.vercel

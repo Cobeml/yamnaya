@@ -6,13 +6,25 @@ The local implementation includes the utility model, source adapters, four-domai
 
 TypeScript, ESLint and the Docker production build pass. All 29 unit/regression tests, three Playwright tests and six deterministic scenario evaluations pass. The browser recovery reaches 9/9 mission checks using the actual worker and isolated mapper service. Desktop/mobile screenshots were inspected. The OpenClaw observation → one-use sign-in → Chromium snapshot smoke test passes without a model call; the attacker gateway rejects browser, shell and defender tools. Incident state, plans, messages and audit evidence retain the same digest after web/worker/agent recreation. GitHub ancestry and retry behavior are tested with a mocked connector; no live PR has been created.
 
-CI now runs the unit/build/evaluation and Docker browser suites; the remote CI workflow itself has not been run in this session. [Verification record](verification.md) lists evidence and limits.
+CI defines the unit/build/evaluation and Docker browser suites. The corrected browser job was reproduced in an isolated Docker project with generated credentials; the updated workflow still needs committing/pushing and a GitHub run. [Verification record](verification.md) lists earlier local evidence and limits.
 
 ## Credential checks completed on 2026-09-10
 
 The supplied credentials pass preflight. Two actual Astra requests through the Docker OpenClaw gateways returned the correct live observation views (20 service points for the defender, three for the attacker). Slack bot authentication, app Socket Mode authorization, the worker's Socket Mode connection, GitHub repository access with reported push permission, and the configured PostgreSQL `SELECT 1` check pass. The authenticated Chromium smoke test also passes with the credential configuration. Tests load credentials internally; `.env` contents and secret values were not displayed or inspected by the assistant.
 
 These checks used observation tools and authenticated read-only integration probes. They did not exercise a full agentic recovery, deliver Slack messages, create a real PR, or deploy hosted infrastructure.
+
+## Hosted setup and CI repair on 2026-09-10
+
+- Migrated the supplied Neon demo database through its direct endpoint, then reran the migration successfully. The app uses the pooled TLS endpoint.
+- Created `cobemls-projects/yamnaya` through the logged-in Vercel CLI, configured the `apps/web` monorepo root and production app secrets, connected `Cobeml/yamnaya`, and deployed **https://yamnaya.vercel.app**. Kept Vercel Standard Protection on preview/deployment aliases and used the accessible production domain for the runtime.
+- Kept `.env` contents and values out of tool output. Added a name-only, stdin-based production environment sync helper. OpenAI, Slack and GitHub execution keys remain local; hosted badges use non-secret configuration flags. `.env.hosted` contains only URL overrides and remains ignored.
+- Reconnected the existing Docker executor and both Astra/OpenClaw containers to the hosted API. Nine hosted checks pass: database-backed health, anonymous denial, three role/password sessions, three service identities, and attacker/defender separation. Docker OpenClaw's observation → one-use browser ticket → authenticated Chromium dashboard smoke test passes over HTTPS; Slack Socket Mode reconnects successfully.
+- Two actual Astra observation turns also pass against the hosted Neon-backed run `RUN-7D5E0078`: defender sees 20 service points (8.7 seconds), attacker sees only three (9.0 seconds). These are read-tool checks, not complete agentic recovery trials.
+- Fixed `pnpm setup` → `pnpm run setup`, the `lib/` ignore rule hiding authentication/persistence source files, and Next.js standalone output incompatibility with Vercel's adapter. Both previously ignored files must accompany the next commit. Added Vercel/Docker upload exclusions for credentials and runtime material.
+- Validation: typecheck, lint, 29 regression tests, a successful Vercel production build, and all three browser tests against a separately built Docker stack with disposable credentials. Browser recovery reached all mission checks. The temporary CI stack was stopped afterward; its evidence remains at `/tmp/yamnaya-ci-q0ox2U`.
+
+The hosted run remains a clean monitoring simulation. Full recovery was tested on isolated local infrastructure, not on the credential-enabled hosted runtime. Live Slack delivery, corrective PR creation, approval conversations, and complete agentic recovery remain the next workflow gates. No extra GitHub Actions secrets are needed for current CI or the connected Vercel Git integration; deployment.md contains the full credential breakdown.
 
 ## Acceptance checks
 
@@ -28,7 +40,7 @@ These checks used observation tools and authenticated read-only integration prob
 1. Extend the successful Astra read-tool smoke checks into an actual OpenClaw plan → browser → recovery trial.
 2. Verify Slack notification delivery, exact plan/version approvals, field confirmation, and unauthorized-user rejection with the configured channel/personas.
 3. Verify a corrective PR, correct incident base, source digest and commit provenance, including retry reconciliation, using the validated GitHub credentials.
-4. Provision Neon and deploy the prepared Next.js project to Vercel. Run the same browser tests against the deployment using a separate demo environment.
+4. Provision an isolated hosted test environment with its own database and executor before running the destructive browser recovery suite there. Production Neon/Vercel provisioning and role/tool/browser smoke checks are complete.
 5. Record three live trials and one pivot trial. Compare with the explicit manual shutdown baseline using recovery time, healthy throughput, scope, authority violations and failed attempts. Report all failed/indeterminate runs rather than presenting fixture scores as live success.
 
-Credentials for the local integrations are now validated; the remaining gates need live workflow trials and hosted provisioning. See deployment and recovery runbooks. No production utility integration is part of this project.
+Credentials and hosted connectivity are validated; the remaining gates need live workflow trials and an isolated hosted recovery-test environment. See deployment and recovery runbooks. No production utility integration is part of this project.
