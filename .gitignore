@@ -3,6 +3,7 @@
 # =========================
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 *.cert
@@ -154,3 +155,7 @@ workspace/logs/
 workspace/output/
 workspace/.cache/
 workspace/temp_downloads/
+runtime/
+playwright-report/
+test-results/
+*.tsbuildinfo
