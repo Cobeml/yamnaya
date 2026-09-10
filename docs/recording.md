@@ -6,9 +6,17 @@ Use https://yamnaya.vercel.app/present for the camera and the ordinary dashboard
 
 Three real people use the configured security, platform, and operations Slack identities in the dedicated channel. Use the incident's current thread; unrelated messages do not authorize actions. Record only that thread locally at 1080p, with unrelated notifications hidden. Narration is added afterward. The server captures the dashboard independently, so a remote desktop is unnecessary.
 
-- Platform sponsor: answer whether this contractor deployment was authorized. Inspect the actual corrective mapping/PR when requested; approve only the current plan/version.
-- Meter operations: inspect assigned simulated installation records; acknowledge the listed service points with `confirm field SDP-001 SDP-002 SDP-003`, substituting the actual assignments. This is a digital acknowledgement in a synthetic utility, not a claim about physical field work at Con Edison.
-- Security: review scope, remaining exposure, continuity, and closure. Each role approves with `approve PLAN-3 v1`, substituting the actual requested plan/version. New threat evidence can invalidate prior authority; respond to the renewed request.
+The default demo is **Simple credential leak / containment**. All three people interact through Slack. The UI is for watching progress; the presenter alone uses start/stop controls.
+
+- Security reviews the leak evidence and authorizes containment.
+- Platform reviews disabling the exposed contractor account, including both sessions and integration access, while keeping healthy meter processing online.
+- Operations reviews holding the affected data update and digital field dispatch. Electricity and meter readings stay on.
+
+Each person waits for their targeted request, reads the listed plan, and replies in that incident thread with the exact command shown, usually `approve PLAN-1 v1`. Use the actual requested version. `reject PLAN-1 v1` blocks execution. Ordinary questions and prose are conversation, not approval. Yamnaya acknowledges each recorded decision and lists remaining approvers; all three must approve before the four-step plan executes. No field-confirmation command or dashboard approval is needed for this mission.
+
+The agent investigates the exposed principal and affected work, proposes its plan, rehearses it, then executes after employee authorization. It disables access, quarantines the affected data and work order, and independently checks denied access, retained holds, trusted code, aligned records/cache and healthy continuity. The final result is **verified containment**. Held work remains under review; this take does not demonstrate code repair, field visits or resumption. Aim for a few minutes live, edited to one minute; actual timing depends on model and human response latency.
+
+The advanced contractor recovery remains available with `--scenario=contractor`. That workflow still includes browser revocation, code repair/PR, and operations field confirmations. Its recording requirements are unchanged.
 
 Neither the capture script nor the development assistant submits human approvals. The runtime chooses plans. Do not use manual candidate buttons or Inject incident during the live take.
 
@@ -20,16 +28,16 @@ The existing Docker runtime must use `.env.hosted` and remain running. Commands 
 pnpm demo:record --url=https://yamnaya.vercel.app --with-terminal
 ```
 
-Wait for `RECORDER ARMED`. Then the presenter can reset the dashboard to a fresh **Live contractor** run, or use the explicit presenter command in another terminal:
+Wait for `RECORDER ARMED`. Then the presenter can reset the dashboard to a fresh **Live credential leak** run, or use the explicit presenter command in another terminal:
 
 ```bash
 pnpm demo:run --start
 pnpm demo:run
 ```
 
-`demo:run` without flags is a sanitized status check. `--start` creates a fresh live synthetic incident; the existing attacker driver initiates the offense. It does not inject a predetermined attack. `--stop` invokes the existing operator stop control and preserves evidence. A stop cannot undo external effects; reconcile active/indeterminate jobs before another take.
+`demo:run` without flags is a sanitized status check. `--start` creates a fresh live synthetic incident; the existing attacker driver initiates the offense. The simple surface permits one bounded leaked-access attempt; the actual attacker agent invokes it. The defender still selects its evidence, plan and tool calls. `--stop` invokes the existing operator stop control and preserves evidence. A stop cannot undo external effects; reconcile active/indeterminate jobs before another take.
 
-The recorder waits for a new live run, binds its ID, records 1920×1080 browser video and state/event markers, and stops eight seconds after verified recovery. With `--with-terminal`, it also checks the Docker activity readers before arming and records a second video of the same output printed in the terminal. Default limit is 20 minutes (`--max-seconds=1200`). Ctrl-C saves the footage, but **does not stop the incident**. Raw video and an incrementally written manifest survive an ordinary stop; forced process termination may leave unfinished video. No cookies, passwords, code sources, or evaluator truth are written into the manifest.
+The recorder waits for a new live run, binds its ID, records 1920×1080 browser video and state/event markers, and stops eight seconds after verified mission completion. With `--with-terminal`, it also checks the Docker activity readers before arming and records a second video of the same output printed in the terminal. Default limit is 20 minutes (`--max-seconds=1200`). Ctrl-C saves the footage, but **does not stop the incident**. Raw video and an incrementally written manifest survive an ordinary stop; forced process termination may leave unfinished video. No cookies, passwords, code sources, or evaluator truth are written into the manifest.
 
 For an explicit observation-only camera test of the existing simulation:
 
@@ -69,19 +77,31 @@ For named tracks, `start`/`end` use the manifest's shared clock. Set `"track": "
 
 To insert the Slack recording, supply a segment's optional `source` as a relative path to your local Slack video, with its own `start`/`end`. Use footage from the same incident and match the run/plan ID and timestamp to the manifest. Keep total output duration at 60 seconds. Transfer the external clip using the same SSH host you already use over Tailscale; credential files are not needed.
 
-An incomplete or simulation recording defaults to a **CAPTURE PREVIEW** export. Removing that label is refused unless recorded evidence includes a fresh live incident, both runtime agents, containment, human decisions/field acknowledgement, confirmed Slack delivery, a tested corrective PR, advancing continuity counters, and independently verified closure without capture interruptions. These gates check recorded state; reviewers must still inspect the receipts and footage. A green plan alone is not mission recovery.
+An incomplete or simulation recording defaults to a **CAPTURE PREVIEW** export. Both missions require a fresh live incident, both runtime agents, advancing continuity, blocked access and independently verified closure without capture interruptions. Containment additionally requires all three current Slack approvals, three confirmed Slack request deliveries, trusted running code and a retained hold matching the affected scope. Advanced recovery additionally requires field acknowledgement and a tested corrective PR. Containment exports are explicitly labeled CONTAINMENT. These gates check recorded state; reviewers must still inspect the receipts and footage. A green plan alone is not mission recovery.
 
 ## Six-beat edit and narration outline
 
 | Final time | Picture | Narration |
 | --- | --- | --- |
 | 0–6s | Mission and advancing intake | Cyber defense must preserve the mission as the situation changes. |
-| 6–14s | Actual attacker tool action, then affected meter records | A compromised contractor changes synchronization code. Its effects reach operational data. |
-| 14–28s | Defender rationale/tools, exposed access blocked, selective quarantine | Yamnaya follows the dependencies and contains affected work while healthy operations continue. Include an actual attacker pivot only if clearly captured. |
-| 28–40s | Slack decisions and field confirmations | It mobilizes the sponsor, security lead, and meter operations. Human authority and field evidence shape the response. |
-| 40–52s | Terminal test/PR/execution receipts, then source-aligned data | The approved maneuver restores trusted code and reconciles meter relationships and the operator cache. |
-| 52–60s | Verified mission and continuing processing | Independent checks establish recovery. The mission holds; the defense moves. |
+| 6–14s | Actual attacker tool action, then affected meter records | Leaked contractor access is used to falsify a meter work update. The related data write is rejected, and the affected work needs containment. |
+| 14–28s | Defender observation tools and proposed containment plan | Yamnaya follows the exposed account to its data and field-work dependencies and checks that the healthy processing path can continue. |
+| 28–40s | Three Slack requests and approval confirmations | Security, platform, and operations approve the scoped response. The agent cannot approve its own plan. |
+| 40–52s | Terminal execution receipts, then blocked access and held work | The agent disables exposed access and quarantines the affected data and field work, while trusted code keeps healthy operations running. |
+| 52–60s | Verified mission and continuing processing | Independent checks confirm containment and continuing service. Affected work stays held for review. |
 
 Keep the run ID and synthetic/live labels legible. Do not splice different takes into a single claimed recovery. Show the actual result if a prerequisite or live integration fails; resolve it before filming a successful closing shot.
 
 If an operator fixes infrastructure during a take, retain the details and actual UTC times in `operator-interventions.jsonl` alongside its manifest. The exporter preserves this sidecar and labels the footage **OPERATOR ASSISTED**. A successful repair after such intervention is not an unassisted trial; use a fresh take after the infrastructure fix for that claim.
+
+## Saved first rehearsal
+
+The stopped first take is `runtime/recordings/RUN-828589B0/2026-09-10T19-30-55-484Z/`. Open `raw.webm` for the dashboard and `terminal.webm` for agent/tool activity; `terminal.log` is searchable text. The raw take includes about five minutes of armed lead-in. A 60-second two-track review is in `export-2026-09-10T20-19-23-323Z/preview.mp4`; it is labeled CAPTURE PREVIEW and OPERATOR ASSISTED, and ends at the partial 6/9-check outcome. It is not a successful demo final.
+
+Download using the SSH hostname you already use over Tailscale, for example from your laptop:
+
+```bash
+scp YOUR_SSH_HOST:/home/cobe-liu/Developing/yamnaya/runtime/recordings/RUN-828589B0/2026-09-10T19-30-55-484Z/export-2026-09-10T20-19-23-323Z/preview.mp4 .
+```
+
+The second, stopped take is `runtime/recordings/RUN-AEE48F4C/2026-09-10T20-00-51-715Z/`. Recordings stay on this machine; Vercel does not host these files.

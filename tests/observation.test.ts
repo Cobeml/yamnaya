@@ -3,13 +3,14 @@ import { seedRun } from "../packages/core/src/index";
 import { agentState, driverFingerprint } from "../openclaw/observation.mjs";
 it("keeps recent human input and authority in valid bounded JSON after a long incident", () => {
   const run = seedRun("RUN-LONG", "contractor", "live");
-  const state = { ...run, affected: ["SDP-001"], checks: [{ passed: false }], observations: Array.from({ length: 500 }, (_, i) => ({ id: `OBS-${i}`, type: "anomaly", source: "pipeline", resourceIds: ["SDP-001"], detail: "repeat".repeat(1000) })), events: Array.from({ length: 500 }, (_, i) => ({ id: `EV-${i}`, type: "sync.saved", message: "healthy".repeat(500) })), chat: [{ role: "platform", text: "Connector fixed; reassess prerequisites" }] };
+  const state = { ...run, affected: ["SDP-001"], checks: [{ passed: false }], observations: Array.from({ length: 500 }, (_, i) => ({ ...run.observations[0], id: `OBS-${i}`, kind: "anomaly", source: "pipeline", resourceIds: ["SDP-001"], message: "repeat".repeat(1000) })), events: Array.from({ length: 500 }, (_, i) => ({ id: `EV-${i}`, type: "sync.saved", message: "healthy".repeat(500) })), chat: [{ role: "platform", text: "Connector fixed; reassess prerequisites" }] };
   const text = JSON.stringify(agentState(state));
   expect(text.length).toBeLessThan(48000);
   const view = JSON.parse(text);
   expect(view.chat[0].text).toContain("Connector fixed");
   expect(view.checks).toEqual(state.checks);
   expect(view.credentials).toEqual(state.credentials);
+  expect(view.observations[0].id).toBe("OBS-499");
   for (const key of ["physical", "scenario", "idempotency"]) expect(view).not.toHaveProperty(key);
   expect(view.artifacts.every((a: Record<string, unknown>) => !a.source)).toBe(true);
   expect(state.observations).toHaveLength(500);

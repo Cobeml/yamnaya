@@ -19,8 +19,14 @@ export interface EffectProof {
   commit?: string;
   message?: string;
 }
-export function rolesFor(action: Action): HumanRole[] {
+export function rolesFor(action: Action, run?: Run): HumanRole[] {
+  if (run?.scenario === "credential-leak") {
+    if (action.kind === "quarantine") return ["operations"];
+    if (action.kind === "close_incident") return ["security", "platform", "operations"];
+  }
   switch (action.kind) {
+    case "disable_principal":
+      return ["security", "platform"];
     case "promote_worker":
     case "route_reserve":
       return ["platform"];
@@ -47,9 +53,16 @@ export function assertActor(actor: Actor) {
       403,
     );
 }
+function assertMissionAction(run: Run, action: Action) {
+  if (run.scenario === "credential-leak")
+    demand(["disable_principal", "quarantine", "notify", "verify", "close_incident"].includes(action.kind),
+      "This containment mission permits approved account disablement, scoped quarantine, notification, verification and closure");
+  else demand(action.kind !== "disable_principal", "Account disablement is available only in the containment mission");
+}
 export function createPlan(run: Run, raw: PlanInput, actor: Actor): Plan {
   assertActor(actor);
   const input = planInputSchema.parse(raw);
+  input.steps.forEach(a => assertMissionAction(run, a));
   demand(
     actor.role !== "defender" ||
       !input.steps.some((s) => s.kind === "revoke_credential"),
@@ -66,7 +79,7 @@ export function createPlan(run: Run, raw: PlanInput, actor: Actor): Plan {
     threatVersion: run.threatVersion,
     status: "DRAFT",
     createdAt: run.clock,
-    requiredRoles: [...new Set(input.steps.flatMap(rolesFor))],
+    requiredRoles: [...new Set(input.steps.flatMap(a => rolesFor(a, run)))],
     approvals: [],
     stepIndex: 0,
     receipts: [],
@@ -88,6 +101,7 @@ export function revisePlan(
     "Stop execution before revising a plan",
   );
   const input = planInputSchema.parse(raw);
+  input.steps.forEach(a => assertMissionAction(run, a));
   demand(
     actor.role !== "defender" ||
       !input.steps.some((s) => s.kind === "revoke_credential"),
@@ -101,7 +115,7 @@ export function revisePlan(
     version: plan.version + 1,
     threatVersion: run.threatVersion,
     status: "DRAFT",
-    requiredRoles: [...new Set(input.steps.flatMap(rolesFor))],
+    requiredRoles: [...new Set(input.steps.flatMap(a => rolesFor(a, run)))],
     approvals: [],
     rehearsal: undefined,
     stepIndex: 0,
@@ -130,7 +144,21 @@ export function applyAction(
   options: { rehearsal?: boolean; proof?: EffectProof } = {},
 ) {
   const { rehearsal, proof } = options;
+  assertMissionAction(run, action);
   switch (action.kind) {
+    case "disable_principal": {
+      const credentials = run.credentials.filter(c => c.principalId === action.principalId);
+      demand(credentials.length && credentials.some(c => c.leakProven && run.observations.some(o =>
+        o.kind === "credential-leak" && o.trusted && o.resourceIds.includes(c.id))),
+        "Account disablement requires independently proven exposed access for that principal");
+      for (const c of credentials) {
+        c.status = "revoked";
+        c.version++;
+      }
+      demand(credentials.every(c => c.permissions.every(p => !credentialWorks(run, c.id, p))), "Account access denial probe failed");
+      run.metrics.containedAt ??= run.clock;
+      return `Disabled ${action.principalId}: ${credentials.length} access grants revoked; all subsequent access probes denied`;
+    }
     case "revoke_credential": {
       const c = run.credentials.find((c) => c.id === action.credentialId);
       demand(c, "Unknown credential");
@@ -163,7 +191,7 @@ export function applyAction(
         ...new Set([...run.quarantinedSdps, ...action.sdpIds]),
       ];
       for (const tx of run.transactions)
-        if (action.sdpIds.includes(tx.request.sdpId) && tx.status === "queued")
+        if (action.sdpIds.includes(tx.request.sdpId) && (tx.status === "queued" || (run.scenario === "credential-leak" && tx.status === "failed")))
           tx.status = "quarantined";
       for (const wo of run.workOrders)
         if (action.sdpIds.includes(wo.sdpId) && wo.type === "exchange")
@@ -467,7 +495,9 @@ export function applyAction(
       );
       run.status = "verified";
       run.metrics.recoveredAt ??= run.clock;
-      return "Incident closed with verified recovery across all four domains";
+      return run.scenario === "credential-leak"
+        ? "Containment verified: contractor access disabled, affected data and field work held, healthy operations continue. Held work remains under review."
+        : "Incident closed with verified recovery across all four domains";
     }
   }
 }
@@ -507,6 +537,18 @@ export function rehearse(run: Run, planId: string, actor: Actor) {
     [],
     { planId },
   );
+  if (!problems.length && run.scenario === "credential-leak") {
+    for (const role of plan.requiredRoles) {
+      // Generate review requests from the stored, rehearsed plan, never a model's approval claim.
+      if (run.notifications.some(n => n.approvalRequest?.planId === plan.id &&
+        n.approvalRequest.planVersion === plan.version && n.approvalRequest.role === role)) continue;
+      const n = { id: `NOTIFY-${run.notifications.length + 1}`, recipientId: role,
+        message: "Review the rehearsed containment plan", status: "queued" as const,
+        approvalRequest: { planId: plan.id, planVersion: plan.version, role } };
+      run.notifications.push(n);
+      run.jobs.push({ id: `JOB-${run.jobs.length + 1}`, kind: "notification", targetId: n.id, status: "queued", attempts: 0 });
+    }
+  }
   return plan;
 }
 export function approve(
@@ -517,6 +559,7 @@ export function approve(
   actor: Actor,
   now = new Date(),
 ) {
+  demand(run.status !== "stopped" && run.status !== "verified", "Run is no longer accepting approvals");
   const plan = getPlan(run, planId);
   demand(
     ["security", "platform", "operations"].includes(actor.role),
@@ -541,6 +584,7 @@ export function approve(
     planVersion: version,
     role: actor.role as HumanRole,
     actorId: actor.id,
+    channel: actor.channel,
     decision,
     time: now.toISOString(),
     expiresAt: new Date(now.getTime() + 15 * 60000).toISOString(),
@@ -572,7 +616,7 @@ export function authorize(run: Run, plan: Plan, now = new Date()) {
       "Threat state changed; revise or rehearse and renew approvals",
     );
   }
-  const required = plan.steps.slice(plan.stepIndex).flatMap(rolesFor);
+  const required = plan.steps.slice(plan.stepIndex).flatMap(a => rolesFor(a, run));
   for (const role of new Set(required)) {
     const approval = plan.approvals.find(
       (a) =>
@@ -707,7 +751,7 @@ export function standaloneAction(run: Run, action: Action, actor: Actor) {
   assertActor(actor);
   demand(run.status !== "stopped", "Run is stopped");
   demand(
-    rolesFor(action).length === 0 && action.kind !== "prepare_patch",
+    rolesFor(action, run).length === 0 && action.kind !== "prepare_patch",
     "This action needs a rehearsed plan and an executor",
   );
   if (action.kind === "revoke_credential" && actor.role === "defender")
@@ -728,6 +772,15 @@ export function suggestedPlan(
     .filter((o) => o.trusted)
     .map((o) => o.id)
     .slice(-8);
+  if (run.scenario === "credential-leak") return {
+    title: "Disable exposed contractor access and hold affected work",
+    rationale: "The leak detector and work audit identify exposed contractor access and affected work. Disable both access grants, quarantine the observed scope, and preserve healthy meter processing while employees review held work.",
+    evidenceIds, alternatives: [], steps: [
+      { kind: "disable_principal", principalId: "contractor" },
+      { kind: "quarantine", sdpIds: scope },
+      { kind: "verify" }, { kind: "close_incident" },
+    ],
+  };
   if (kind === "disruptive")
     return {
       title: "Pause all synchronization",

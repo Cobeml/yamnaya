@@ -10,6 +10,7 @@ import type {
   Association,
 } from "../../packages/core/src/contracts";
 import { preparePatch } from "./github";
+import { approvalMessage, approvalAcknowledgement } from "./slack-messages";
 
 const base = process.env.YAMNAYA_URL ?? "http://localhost:3100";
 const owner = `executor-${randomUUID().slice(0, 8)}`;
@@ -67,7 +68,7 @@ if (
       return;
     try {
       const run = (await api("worker/state")) as unknown as Run;
-      await api(
+      const result = await api(
         "worker/slack",
         {
           runId: run.id,
@@ -78,6 +79,8 @@ if (
         },
         `slack:${"event_id" in body ? String(body.event_id) : m.ts}`,
       );
+      const acknowledgement = approvalAcknowledgement(result.result as Plan, m.user);
+      if (acknowledgement) await postSlackOnce(`${run.id}:ack:${m.ts}`, acknowledgement, run.slackThreadTs);
     } catch (e) {
       console.error("Slack ingress:", String(e));
     }
@@ -93,9 +96,11 @@ async function notify(run: Run, notification: Notification) {
   }
   const userId =
     process.env[`SLACK_${notification.recipientId.toUpperCase()}_USER_ID`];
+  const message = approvalMessage(run, notification);
+  if (!message) return undefined; // Superseded review request; never invite stale approval.
   return postSlackOnce(
     `${run.id}:${notification.id}`,
-    `${userId ? `<@${userId}> ` : ""}${notification.message}`,
+    `${userId ? `<@${userId}> ` : ""}${message}`,
     run.slackThreadTs,
   );
 }
@@ -142,7 +147,9 @@ while (!stopping) {
       if (slack && !run.slackThreadTs && run.status !== "monitoring") {
         const threadTs = await postSlackOnce(
           `incident-${run.id}`,
-          `Yamnaya incident ${run.id}: ${run.name}. Review evidence and plans at ${base}. Approve an exact plan with: approve PLAN-1 v1.`,
+          run.scenario === "credential-leak"
+            ? `*Yamnaya: leaked contractor access detected*\nOne meter work update is affected. I will prepare a containment plan for security, platform, and operations to review.\nPlease stay in this thread and wait for your approval request. All participant responses go here; the dashboard is for watching progress.\nSynthetic utility exercise · ${run.id} · ${base}/present`
+            : `Yamnaya incident ${run.id}: ${run.name}. Please discuss the incident in this thread. Wait for a rehearsed plan and its exact approval request. Evidence: ${base}/present`,
         );
         await api(
           "worker/thread",
@@ -150,6 +157,13 @@ while (!stopping) {
           `thread:${run.id}`,
         );
         run.slackThreadTs = threadTs;
+      }
+      if (slack && run.slackThreadTs && run.scenario === "credential-leak") {
+        const executing = run.plans.find(p => p.status === "EXECUTING");
+        if (executing) await postSlackOnce(`${run.id}:${executing.id}:v${executing.version}:executing`,
+          "*All approvals received — executing containment.*\nDisabling exposed contractor access and holding affected data and field work. I will report the independent checks next.", run.slackThreadTs);
+        if (run.status === "verified" && run.verification.length && run.verification.every(c => c.passed))
+          await postSlackOnce(`${run.id}:contained`, `*Containment verified.*\nContractor access is disabled. Affected data and field work are held for review. Healthy meter processing and AMI readings continue.\n${run.verification.length}/${run.verification.length} independent checks passed. No further participant action is needed for this demo. Held work has not been released.`, run.slackThreadTs);
       }
       const claim = run.jobs.some(j => ["queued", "leased"].includes(j.status))
         ? await api("worker/claim", { runId: run.id, owner })

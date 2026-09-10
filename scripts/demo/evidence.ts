@@ -1,6 +1,9 @@
 import type { PresentationState } from "../../apps/web/lib/presentation";
 
 export interface Sample {
+  mission?: "containment" | "recovery";
+  slackApprovedRoles?: string[];
+  codeTrusted?: boolean;
   offset: number;
   observedAt: string;
   runId: string;
@@ -47,7 +50,13 @@ export interface Edit {
 
 export function sample(state: PresentationState, offset: number, observedAt = new Date().toISOString()): Sample {
   const patch = state.artifacts.find(a => a.id === "repair-candidate");
+  const plan = state.plans.at(-1);
   return {
+    mission: state.mission?.kind ?? "recovery",
+    slackApprovedRoles: plan?.threatVersion === state.threatVersion ? plan.approvals.filter(a =>
+      a.planVersion === plan.version && a.channel === "slack" && a.decision === "approved" &&
+      Date.parse(a.expiresAt) > Date.parse(observedAt)).map(a => a.role) : [],
+    codeTrusted: state.checks.some(c => c.id === "code" && c.passed),
     offset, observedAt, runId: state.id, mode: state.mode, revision: state.revision, status: state.status,
     affected: state.affected.length, quarantined: state.quarantinedSdps.length,
     blockedCredentials: state.credentials.filter(c => c.leakProven && c.status === "revoked").length,
@@ -64,19 +73,22 @@ export function sample(state: PresentationState, offset: number, observedAt = ne
   };
 }
 
-export function evidenceGates(manifest: Manifest) {
+export function evidenceGates(manifest: Manifest): Record<string, boolean> {
   const samples = manifest.samples;
   const first = samples[0], last = samples.at(-1);
   const events = samples.flatMap(s => s.events);
   const firstEvents = new Set(first?.events.map(e => e.id));
   const recordedEvents = events.filter(e => !firstEvents.has(e.id));
+  const containment = first?.mission === "containment";
   return {
-    oneRun: !!manifest.runId && samples.length > 1 && samples.every(s => s.runId === manifest.runId && s.mode === manifest.mode),
+    oneRun: !!manifest.runId && samples.length > 1 && samples.every(s => s.runId === manifest.runId && s.mode === manifest.mode && (s.mission ?? "recovery") === (first.mission ?? "recovery")),
     liveAgents: manifest.mode === "live" && ["defender", "attacker"].every(actor => recordedEvents.some(e => e.type === "agent.turn" && e.actor === actor)),
     incidentCaptured: first?.status === "monitoring" && samples.some(s => s.affected > 0),
     accessBlocked: !!last && last.blockedCredentials > (first?.blockedCredentials ?? 0),
-    humanDecisions: !!last && last.approvals > (first?.approvals ?? 0) && last.fieldsConfirmed > 0 && last.slackDelivered > 0,
-    codeReceipt: !!last?.patchTested && !!last.prUrl,
+    humanDecisions: containment ? ["security", "platform", "operations"].every(r => last?.slackApprovedRoles?.includes(r)) && (last?.slackDelivered ?? 0) >= 3
+      : !!last && last.approvals > (first?.approvals ?? 0) && last.fieldsConfirmed > 0 && last.slackDelivered > 0,
+    ...(containment ? { codeIntegrity: last?.codeTrusted === true, scopedHold: (last?.quarantined ?? 0) > 0 && last?.quarantined === last?.affected }
+      : { codeReceipt: !!last?.patchTested && !!last.prUrl }),
     verified: last?.missionVerified === true,
     continuityObserved: !!first && !!last && last.amiReads > first.amiReads && last.healthyBatches > first.healthyBatches && samples.every(s => s.activeWorkers > 0),
     uninterrupted: manifest.interruptions.length === 0,
@@ -111,8 +123,11 @@ export function suggestedEdit(manifest: Manifest, duration: number): Edit {
   const preview = Object.values(evidenceGates(manifest)).some(ok => !ok);
   if (preview) return { runId: manifest.runId ?? "unbound", preview: true, segments: [{ title: "Recording preview", start: Math.min(samples[0]?.offset ?? 0, Math.max(0, duration - 1)), end: duration, seconds: Math.min(20, Math.max(1, duration - (samples[0]?.offset ?? 0))) }] };
   const find = (fn: (s: Sample) => boolean) => samples.find(fn)?.offset ?? samples[0].offset;
-  const cues = [samples[0].offset, find(s => s.affected > 0), find(s => s.quarantined > 0 || s.blockedCredentials > 0), find(s => s.approvals > 0 || s.fieldsConfirmed > 0 || s.slackDelivered > 0), find(s => s.patchTested), find(s => s.missionVerified)];
-  const titles = ["Preserve the mission", "The attack reaches meter operations", "Contain affected work", "Mobilize accountable people", "Restore trusted code and data", "Independently verified recovery"];
+  const containment = samples[0].mission === "containment";
+  const cues = containment ? [samples[0].offset, find(s => s.affected > 0), find(s => s.slackDelivered > 0), find(s => s.approvals >= 3), find(s => s.blockedCredentials > 0), find(s => s.missionVerified)]
+    : [samples[0].offset, find(s => s.affected > 0), find(s => s.quarantined > 0 || s.blockedCredentials > 0), find(s => s.approvals > 0 || s.fieldsConfirmed > 0 || s.slackDelivered > 0), find(s => s.patchTested), find(s => s.missionVerified)];
+  const titles = containment ? ["Keep meter operations running", "Leaked access reaches a work order", "Agent investigates and requests approval", "Three employees authorize containment", "Disable access and quarantine affected work", "Containment independently verified"]
+    : ["Preserve the mission", "The attack reaches meter operations", "Contain affected work", "Mobilize accountable people", "Restore trusted code and data", "Independently verified recovery"];
   const lengths = [6, 8, 14, 12, 12, 8];
   let previous = 0;
   return { runId: manifest.runId!, preview: false, segments: cues.map((cue, i) => {

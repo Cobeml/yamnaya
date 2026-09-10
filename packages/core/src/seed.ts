@@ -237,5 +237,16 @@ export function seedRun(
     chat: [],
     idempotency: {},
   };
+  if (scenario === "credential-leak") {
+    run.name = "Leaked contractor access / containment";
+    run.sor = structuredClone(initial);
+    run.physical = structuredClone(initial);
+    run.transactions = [];
+    run.workOrders = run.workOrders.slice(0, 1);
+    run.credentials.find(c => c.id === "cred-contractor")!.permissions = ["support:write", "workorder:write"];
+    run.artifacts = run.artifacts.filter(a => a.trusted);
+    run.observations[0].message = "Meter records are aligned. One planned meter exchange awaits dispatch at SDP-001. Contractor access can submit work updates; AMI intake is separate. Containment means disabling exposed contractor access and holding affected data and field work while healthy operations continue.";
+    run.observations[0].resourceIds = ["SDP-001", "WO-301"];
+  }
   return run;
 }

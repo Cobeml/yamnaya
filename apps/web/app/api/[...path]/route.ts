@@ -149,6 +149,13 @@ export async function GET(request: NextRequest, context: Context) {
     }
     if (route === "capabilities") {
       requireActor(request, ["defender", "security", "platform", "operations"]);
+      if (run.scenario === "credential-leak") return json({
+        mission: "containment", standing: ["notify", "verify"],
+        planSteps: ["disable_principal", "quarantine", "verify", "close_incident"],
+        disablePrincipalApproval: ["security", "platform"], quarantineApproval: ["operations"],
+        closeIncidentApproval: ["security", "platform", "operations"],
+        approvalDelivery: "Successful rehearsal automatically sends each approver a plain-language Slack request for this plan/version. Return while waiting; execute when authorized.",
+      });
       return json({
         standing: ["quarantine", "notify", "assign_field", "verify"],
         browserOnly: ["revoke_credential"],
@@ -415,6 +422,8 @@ export async function POST(request: NextRequest, context: Context) {
         }
         if (route === "worker/slack") {
           allow(["worker"]);
+          if (["stopped", "verified"].includes(run.status))
+            throw new DomainError("This incident is closed or stopped; use the next active incident thread");
           const data = z
             .object({
               userId: z.string(),
@@ -456,9 +465,7 @@ export async function POST(request: NextRequest, context: Context) {
             data.text,
             [role],
           );
-          const match = /^(approve|reject) (PLAN-\d+) v(\d+)$/i.exec(
-            data.text.trim(),
-          );
+          const match = /^(approve|reject) (PLAN-\d+) v(\d+)$/i.exec(data.text.trim().replace(/^`{1,3}|`{1,3}$/g, "").trim());
           if (match)
             return approve(
               run,

@@ -4,6 +4,8 @@ import { existsSync } from "node:fs";
 import { parse } from "dotenv";
 
 await mkdir("runtime", { recursive: true });
+const slackFixture = process.argv.includes("--slack-fixture");
+if (slackFixture && existsSync(".env")) throw new Error("Slack test fixtures require a new disposable checkout without .env");
 if (!existsSync(".env")) {
   const template = await readFile(".env.example", "utf8");
   const keys = [
@@ -22,6 +24,12 @@ if (!existsSync(".env")) {
       new RegExp(`^${key}=$`, "m"),
       `${key}=${randomBytes(24).toString("hex")}`,
     );
+  if (slackFixture) {
+    for (const [key, value] of Object.entries({ SLACK_CHANNEL_ID: "ci-channel", SLACK_SECURITY_USER_ID: "ci-security",
+      SLACK_PLATFORM_USER_ID: "ci-platform", SLACK_OPERATIONS_USER_ID: "ci-operations" }))
+      content = content.replace(new RegExp(`^${key}=$`, "m"), `${key}=${value}`);
+    content += "\nYAMNAYA_SLACK_TEST_FIXTURE=1\n";
+  }
   await writeFile(".env", content, { mode: 0o600 });
   console.log(
     "Created .env with unique local passwords and service tokens. External credentials remain unset.",

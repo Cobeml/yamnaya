@@ -2,15 +2,18 @@
 const omitSource = ({ source: _source, ...value }) => ({ ...value, ...(_source ? { sourceAvailableByArtifactId: true } : {}) });
 const planSummary = p => ({ id: p.id, version: p.version, status: p.status, threatVersion: p.threatVersion,
   title: p.title, rationale: p.rationale?.slice(0, 1200), evidenceIds: p.evidenceIds, requiredRoles: p.requiredRoles,
-  approvals: p.approvals, stepIndex: p.stepIndex, steps: p.steps?.map(omitSource),
+  approvals: p.approvals, stepIndex: p.stepIndex, steps: p.steps?.map(({ source, ...step }) => ({ ...step, ...(source ? { sourceOmitted: true, inspectPlanId: p.id } : {}) })),
   rehearsal: p.rehearsal, receipts: p.receipts, error: p.error });
 
 export function agentState(s) {
   const focus = new Set([...(s.affected ?? []), ...(s.quarantinedSdps ?? [])]);
   const observations = new Map();
-  for (const o of s.observations ?? []) observations.set(`${o.type}:${o.source}:${(o.resourceIds ?? []).join(",")}`, o);
+  for (const o of s.observations ?? []) {
+    const key = `${o.kind}:${o.source}:${(o.resourceIds ?? []).join(",")}`;
+    observations.delete(key); observations.set(key, o);
+  }
   const tx = (s.transactions ?? []).filter(t => focus.has(t.request.sdpId) || t.status !== "processed");
-  const view = { id: s.id, mode: s.mode, status: s.status, revision: s.revision, clock: s.clock, threatVersion: s.threatVersion,
+  const view = { id: s.id, mode: s.mode, mission: s.mission, status: s.status, revision: s.revision, clock: s.clock, threatVersion: s.threatVersion,
     chat: s.chat?.slice(-12), checks: s.checks, affected: s.affected, quarantinedSdps: s.quarantinedSdps,
     credentials: s.credentials, workers: s.workers, workOrders: s.workOrders, metrics: s.metrics,
     plans: s.plans?.slice(-4).map(planSummary), observations: [...observations.values()].slice(-18),
@@ -20,7 +23,7 @@ export function agentState(s) {
     servicePoints: s.servicePoints, meters: s.meters, people: s.people,
     jobs: s.jobs?.slice(-6), notifications: s.notifications?.slice(-4),
     events: s.events?.filter(e => !["sync.saved", "agent.turn"].includes(e.type)).slice(-8),
-    view: "Current operational view; history arrays are selected, not complete. Full history is retained by the server. Use resource artifact, observation, or transaction with resource_id to inspect an individual record, including mapping source." };
+    view: "Current operational view; history arrays are selected, not complete. Full history is retained by the server. Use resource artifact, observation, or transaction with resource_id to inspect an individual record, including deployed mapping source. Use yamnaya_plan inspect for full plan source." };
   // Remove whole historical entries, never cut JSON or current authority/check fields.
   for (const key of ["events", "notifications", "observations", "transactions", "chat"]) {
     while (JSON.stringify(view).length > 44000 && view[key]?.length > 1) view[key].shift();

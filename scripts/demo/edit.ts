@@ -23,6 +23,7 @@ async function main() {
   if (!manifestArg) throw new Error("Supply --manifest=runtime/recordings/RUN-.../take/manifest.json");
   const directory = path.dirname(path.resolve(manifestArg));
   const manifest: Manifest = JSON.parse(await readFile(manifestArg, "utf8"));
+  const containment = manifest.samples[0]?.mission === "containment";
   let interventions = "";
   try { interventions = await readFile(path.join(directory, "operator-interventions.jsonl"), "utf8"); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
@@ -44,7 +45,7 @@ async function main() {
       if (mediaStart < 0 || mediaStart + s.end - s.start > await duration(media) + 0.04) throw new Error("Clip extends beyond its recording track.");
       if (s.source && s.end > await duration(media) + 0.04) throw new Error("External clip extends beyond supplied footage.");
       const speed = (s.end - s.start) / s.seconds;
-      const label = `${edit.preview ? "CAPTURE PREVIEW" : "LIVE AGENTS - EDITED FOR TIME"}${operatorAssisted ? " - OPERATOR ASSISTED" : ""} | ${manifest.mode?.toUpperCase()} | SYNTHETIC UTILITY | ${edit.runId}`;
+      const label = `${edit.preview ? "CAPTURE PREVIEW" : "LIVE AGENTS - EDITED FOR TIME"}${containment ? " - CONTAINMENT" : ""}${operatorAssisted ? " - OPERATOR ASSISTED" : ""} | ${manifest.mode?.toUpperCase()} | SYNTHETIC UTILITY | ${edit.runId}`;
       const caption = `${s.title}${speed > 1.05 ? ` | ${speed.toFixed(1)}x speed` : speed < 0.95 ? " | Slowed for readability" : ""}`;
       const labelFile = path.join(temp, `label-${i}.txt`), titleFile = path.join(temp, `title-${i}.txt`);
       await writeFile(labelFile, label); await writeFile(titleFile, caption);
@@ -66,7 +67,7 @@ async function main() {
     if (!stream || stream.width !== 1920 || stream.height !== 1080 || stream.codec_name !== "h264" || stream.pix_fmt !== "yuv420p" || stream.r_frame_rate !== "30/1" || probe.streams.some((s: { codec_type: string }) => s.codec_type === "audio")) throw new Error("Export media-format verification failed.");
     await writeFile(path.join(out, "edit-used.json"), JSON.stringify(edit, null, 2));
     if (operatorAssisted) await writeFile(path.join(out, "operator-interventions.jsonl"), interventions);
-    await writeFile(path.join(out, "narration.md"), edit.preview ? "# Camera preview\n\nThis is a capture/export check. It does not establish live agentic recovery.\n" : "# Narration outline\n\nUse only claims visible in this take.\n\n" + edit.segments.map((s, i) => `${i + 1}. ${s.title} (${s.seconds}s)`).join("\n") + "\n\nThe utility is synthetic. Field confirmations are digital acknowledgements by operations. This live run is edited for time. Close on independently verified mission recovery and observed continuity, not model narration alone.\n");
+    await writeFile(path.join(out, "narration.md"), edit.preview ? "# Camera preview\n\nThis is a capture/export check. It does not establish live agentic recovery.\n" : "# Narration outline\n\nUse only claims visible in this take.\n\n" + edit.segments.map((s, i) => `${i + 1}. ${s.title} (${s.seconds}s)`).join("\n") + (containment ? "\n\nThe utility is synthetic. Three employees approved containment in Slack. Access was disabled, affected data and field work remain held, and healthy operations continue. This demonstrates verified containment; it does not claim repaired code or released field work. Edited for time.\n" : "\n\nThe utility is synthetic. Field confirmations are digital acknowledgements by operations. This live run is edited for time. Close on independently verified mission recovery and observed continuity, not model narration alone.\n"));
     if (operatorAssisted) await writeFile(path.join(out, "operator-note.md"), "This take includes operator intervention. The video is labeled OPERATOR ASSISTED; see operator-interventions.jsonl. Do not describe it as an unassisted recovery.\n");
     await writeFile(path.join(out, "verification.json"), JSON.stringify({ duration: actual, expected, width: stream.width, height: stream.height, codec: stream.codec_name, frameRate: stream.r_frame_rate, pixelFormat: stream.pix_fmt, narration: "silent", preview: edit.preview, operatorAssisted }, null, 2));
     console.log(`SAVED ${output} (${actual.toFixed(2)} seconds, ${edit.preview ? "labeled preview" : "live final"}).`);

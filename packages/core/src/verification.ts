@@ -3,6 +3,7 @@ import {
   credentialWorks,
   mismatchedSdps,
   invalidAssociations,
+  containmentScope,
 } from "./simulator";
 import { equalAssociations } from "./mapping";
 
@@ -25,6 +26,10 @@ export function verify(run: Run): VerificationCheck[] {
         .join(),
   );
   const fields = run.workOrders.filter((w) => w.type === "field-verification");
+  const containment = run.scenario === "credential-leak";
+  const scope = containmentScope(run);
+  const heldWork = run.workOrders.filter(w => scope.includes(w.sdpId));
+  const heldData = run.transactions.filter(t => scope.includes(t.request.sdpId));
   return [
     {
       id: "access",
@@ -71,8 +76,8 @@ export function verify(run: Run): VerificationCheck[] {
     },
     {
       id: "physical",
-      label: "Physical installations acknowledged",
-      passed:
+      label: containment ? "Affected field work safely held" : "Physical installations acknowledged",
+      passed: containment ? scope.length > 0 && heldWork.length > 0 && heldWork.every(w => w.status === "held") :
         fields.length > 0 &&
         fields.every((w) => w.status === "confirmed") &&
         fields.every((w) =>
@@ -83,17 +88,18 @@ export function verify(run: Run): VerificationCheck[] {
               o.resourceIds.includes(w.id),
           ),
         ),
-      detail: `${fields.filter((w) => w.status === "confirmed").length}/${fields.length} field verifications acknowledged by operations`,
+      detail: containment ? `${heldWork.filter(w => w.status === "held").length}/${heldWork.length} affected work orders held; digital dispatch is paused, electricity stays on` : `${fields.filter((w) => w.status === "confirmed").length}/${fields.length} field verifications acknowledged by operations`,
     },
     {
       id: "queue",
-      label: "Affected operations safely resumed",
-      passed:
+      label: containment ? "Affected data quarantined for review" : "Affected operations safely resumed",
+      passed: containment ? scope.length > 0 && heldData.length > 0 && heldData.every(t => t.status === "quarantined") &&
+        scope.every(id => run.quarantinedSdps.includes(id)) && run.quarantinedSdps.every(id => scope.includes(id)) :
         run.quarantinedSdps.length === 0 &&
         run.transactions.every(
           (t) => t.status !== "queued" && t.status !== "quarantined",
         ),
-      detail: `${run.quarantinedSdps.length} service points quarantined; permanently rejected stale messages remain in the exception record`,
+      detail: containment ? `${run.quarantinedSdps.length} affected service points held; suspect records retained for review, not released` : `${run.quarantinedSdps.length} service points quarantined; permanently rejected stale messages remain in the exception record`,
     },
     {
       id: "continuity",

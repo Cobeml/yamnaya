@@ -168,7 +168,10 @@ export function defenderView(run: Run) {
   void _physical;
   void _scenario;
   void _idempotency;
-  return visible;
+  return { ...visible, mission: run.scenario === "credential-leak" ? {
+    kind: "containment" as const,
+    objective: "Disable exposed contractor access after security and platform approve. Hold affected data and digital field dispatch after operations approves. Verify denial, quarantine and healthy continuity. Leave held work for review.",
+  } : { kind: "recovery" as const, objective: "Restore trustworthy meter operations across all four domains." } };
 }
 export function attackerView(run: Run) {
   return {
@@ -176,20 +179,21 @@ export function attackerView(run: Run) {
     mode: run.mode,
     time: run.clock,
     stopped: run.status === "stopped" || run.status === "verified",
-    actionBudgetRemaining: 12 - run.attackCount,
+    actionBudgetRemaining: Math.max(0, (run.scenario === "credential-leak" ? 1 : 12) - run.attackCount),
+    allowedActions: run.scenario === "credential-leak" ? ["use_leaked_access"] : ["deploy_mapping", "submit_stale_exchange", "forge_support", "alter_work_order"],
     credentials: run.credentials
       .filter((c) => c.principalId === "contractor")
       .map((c) => ({ id: c.id, status: c.status, permissions: c.permissions })),
     workers: run.workers
       .filter((w) => w.id === "primary")
       .map((w) => ({ id: w.id, status: w.status, artifactId: w.artifactId })),
-    servicePoints: run.servicePoints.slice(0, 3).map((s) => ({ id: s.id })),
+    servicePoints: run.servicePoints.slice(0, run.scenario === "credential-leak" ? 1 : 3).map((s) => ({ id: s.id })),
     workOrders: run.workOrders
       .filter((w) => w.type === "exchange")
       .map((w) => ({ id: w.id, status: w.status, sdpId: w.sdpId })),
     recentResults: run.events
       .filter((e) =>
-        ["access.denied", "deployment.changed", "sync.submitted"].includes(
+        ["access.denied", "deployment.changed", "sync.submitted", "credential.misused"].includes(
           e.type,
         ),
       )

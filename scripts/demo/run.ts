@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { presentation, type PresentationState } from "../../apps/web/lib/presentation";
+import { scenarioSchema } from "../../packages/core/src/contracts";
 
 async function main() {
   const value = process.argv.find(s => s.startsWith("--url="))?.slice(6) ?? "https://yamnaya.vercel.app";
@@ -11,6 +12,7 @@ async function main() {
   if (!stateResponse.ok) throw new Error();
   let state: PresentationState = await stateResponse.json();
   const start = process.argv.includes("--start"), stop = process.argv.includes("--stop");
+  const scenario = scenarioSchema.parse(process.argv.find(s => s.startsWith("--scenario="))?.slice(11) ?? "credential-leak");
   if (start && stop) throw new Error();
   if (start || stop) {
     // These explicit presenter commands reset/stop runs, never grant plan approvals.
@@ -23,7 +25,7 @@ async function main() {
     if (!cookie) throw new Error();
     const response = await fetch(`${origin}/api/${start ? "runs/reset" : "runs/stop"}`, {
       method: "POST", headers: { cookie, origin, "Content-Type": "application/json", "Idempotency-Key": randomUUID() },
-      body: JSON.stringify({ runId: state.id, ...(start ? { mode: "live", scenario: "contractor" } : {}) }), signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ runId: state.id, ...(start ? { mode: "live", scenario } : {}) }), signal: AbortSignal.timeout(20000),
     });
     if (!response.ok) throw new Error();
     const refreshed = await fetch(`${origin}/api/state`, { headers: { Authorization: `Bearer ${process.env.DEFENDER_TOKEN}` }, signal: AbortSignal.timeout(20000) });

@@ -1,12 +1,14 @@
 import type { Actor, Run, VerificationCheck } from "@yamnaya/core";
 
 export type PresentationState = Omit<Run, "physical" | "scenario" | "idempotency"> & {
+  mission?: { kind: "containment" | "recovery"; objective: string };
   affected: string[];
   checks: VerificationCheck[];
   actor: Actor;
 };
 
 export function presentation(state: PresentationState) {
+  const containment = state.mission?.kind === "containment";
   const plan = state.plans.at(-1);
   const current = plan?.threatVersion === state.threatVersion;
   const approvals = plan?.approvals.filter(a => current && a.planVersion === plan.version &&
@@ -20,7 +22,7 @@ export function presentation(state: PresentationState) {
   const workers = state.workers.filter(w => w.available && w.status === "running");
   let next = "Watching for changes to the mission";
   if (state.status === "stopped") next = "Run stopped by the operator";
-  else if (verified) next = "Mission verified. Evidence retained.";
+  else if (verified) next = containment ? "Containment verified. Affected work remains held for review." : "Mission verified. Evidence retained.";
   else if (plan) {
     if (!current) next = "Threat changed — plan and approvals need renewed review";
     else if (["FAILED", "BLOCKED", "INDETERMINATE", "EXPIRED"].includes(plan.status)) next = `${plan.status}: ${plan.error ?? "Review the plan evidence"}`;
@@ -30,5 +32,5 @@ export function presentation(state: PresentationState) {
     else if (pendingRoles.length) next = `Awaiting ${pendingRoles.join(" + ")} approval for ${plan.id} v${plan.version}`;
     else next = plan.requiredRoles.length ? "Approvals recorded; awaiting execution" : "Standing authority; awaiting execution";
   } else if (state.status !== "monitoring") next = "Incident detected; awaiting a recorded response plan";
-  return { plan, current, approvals, pendingRoles, verified, fields, patch, leaked, workers, next, passed };
+  return { plan, current, approvals, pendingRoles, verified, fields, patch, leaked, workers, next, passed, containment };
 }

@@ -17,6 +17,7 @@ export interface Actor {
 }
 export type Mode = "simulation" | "live" | "replay";
 export type Scenario =
+  | "credential-leak"
   | "contractor"
   | "pivot"
   | "reserve-unavailable"
@@ -24,6 +25,7 @@ export type Scenario =
   | "benign"
   | "injection";
 export const scenarioSchema = z.enum([
+  "credential-leak",
   "contractor",
   "pivot",
   "reserve-unavailable",
@@ -149,8 +151,10 @@ export interface Notification {
   status: "queued" | "delivered" | "failed";
   deliveredVia?: "internal" | "slack";
   slackTs?: string;
+  approvalRequest?: { planId: string; planVersion: number; role: HumanRole };
 }
 export const actionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("disable_principal"), principalId: z.string().min(1) }),
   z.object({
     kind: z.literal("revoke_credential"),
     credentialId: z.string().min(1),
@@ -242,6 +246,7 @@ export interface Approval {
   planVersion: number;
   role: HumanRole;
   actorId: string;
+  channel?: Actor["channel"];
   time: string;
   expiresAt: string;
   decision: "approved" | "rejected";
@@ -317,6 +322,7 @@ export interface Run {
   idempotency: Record<string, unknown>;
 }
 export const attackSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("use_leaked_access"), credentialId: z.string(), sdpId: z.string() }),
   z.object({
     kind: z.literal("deploy_mapping"),
     credentialId: z.string(),

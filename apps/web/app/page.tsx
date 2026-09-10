@@ -108,7 +108,7 @@ export default function Console() {
   const [loginOpen, setLoginOpen] = useState(false),
     [role, setRole] = useState("security"),
     [password, setPassword] = useState("");
-  const [scenario, setScenario] = useState("contractor"),
+  const [scenario, setScenario] = useState("credential-leak"),
     [mode, setMode] = useState("simulation"),
     [message, setMessage] = useState("");
   const [selected, setSelected] = useState("SDP-001"),
@@ -181,6 +181,11 @@ export default function Console() {
   }
   async function inject() {
     await act(async () => {
+      if (state?.scenarioLabel === "credential-leak") {
+        await post("runs/attack", { action: { kind: "use_leaked_access", credentialId: "cred-integration", sdpId: "SDP-001" } });
+        if (state.mode !== "live") for (let n = 0; n < 3; n++) await post("runs/tick");
+        return;
+      }
       await post("runs/attack", {
         action: {
           kind: "deploy_mapping",
@@ -1271,6 +1276,7 @@ export default function Console() {
                     value={scenario}
                     onChange={(e) => setScenario(e.target.value)}
                   >
+                    <option value="credential-leak">Simple credential leak / containment</option>
                     <option value="contractor">
                       Contractor mapping incident
                     </option>

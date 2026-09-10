@@ -1,6 +1,6 @@
 # Architecture and demo contract
 
-The mission is to restore trustworthy meter operations while unaffected service points and bulk AMI intake continue. Utility behavior and authority are deterministic. OpenClaw chooses investigations and response plans dynamically through a bounded capability interface.
+The default demo mission is to contain exposed contractor access while unaffected service points and bulk AMI intake continue. The advanced mission restores trustworthy meter operations after a mapping incident. Utility behavior and authority are deterministic. OpenClaw chooses investigations and response plans dynamically through a bounded capability interface.
 
 ```mermaid
 flowchart LR
@@ -32,6 +32,8 @@ OpenClaw is pinned to the official 2026.9.3 browser image by digest. The configu
 
 The driver resumes one conversation per role/run when relevant evidence, access state, plans, or human input changes. Default limits are 40 defender turns, 12 attacker turns, and 12 accepted-or-denied authorized attack attempts per run. Heartbeats, scheduled automation, shell/file tools, and subagent spawning are disabled. The defender browser is limited to the configured utility hostname; the attacker has no browser tool. Tool authorization is enforced again by the API.
 
+The defender tool adapter projects the authorized API state into a bounded current view below OpenClaw's tool-output limit. It preserves current authority, checks, scope and recent human messages; older evidence and artifact source can be retrieved by ID. The full dashboard/persistence view remains intact. Defender wake conditions track threat, human input, scope, access, worker, plan and field-state changes rather than repeated throughput observations.
+
 Slack Socket Mode belongs to the executor. Authenticated Slack user IDs become human actors in the backend, independently of the model. The defender sees their statements and approval changes on its next turn. A claim inside a message never changes a role or approval policy.
 
 Recording instrumentation is an observation channel outside utility authority. The driver uses an explicit stable OpenClaw session per role/run; plugin tool hooks match that session and write sanitized call metadata to the role's existing private state volume. A host-only terminal collector combines those records with existing API receipts and published plan rationales. It neither returns combined telemetry to the agents nor alters their tool permissions. Browser tickets, snapshots, raw tool results, provider reasoning fields, and credentials are excluded from recording output. A recording receipt is never a recovery receipt.
@@ -59,3 +61,13 @@ Evaluator ground truth is not returned to either agent. Defender observations in
 `simulation` runs allow manual candidates and local tested patches; `live` runs enable model drivers and require a GitHub PR for corrective patch execution plus Slack for delivery; `replay` is deterministic evidence playback/evaluation. A plan's `VERIFIED` status means its individual requested steps completed and checks were recomputed. Only run status `verified` means **all mission checks passed and security-approved closure executed**. A containment plan can complete while the mission remains unresolved.
 
 Primary runtime references: [OpenClaw Docker](https://docs.openclaw.ai/install/docker), [plugin tools](https://docs.openclaw.ai/plugins/building-plugins), [browser configuration](https://docs.openclaw.ai/tools/browser/configuration), and [heartbeat controls](https://docs.openclaw.ai/gateway/heartbeat).
+
+## Simple containment mission
+
+`credential-leak` is the default presenter scenario. The same utility integration structure remains, with aligned initial meter records, one planned exchange, and one bounded agent-initiated misuse of exposed contractor access. A trusted leak detector identifies both contractor grants; an ingress check rejects the suspect data update before an association write, while the work-order audit identifies the affected digital dispatch. The attacker cannot deploy code, pivot, or exceed one attempt on this surface. This models a small containment exercise, not a complete recovery incident.
+
+The public mission objective is visible to the defender; evaluator scenario identifiers and physical truth remain hidden. `disable_principal` requires security and platform approval and independently evidenced exposed access for that principal. It revokes every existing grant for that principal and probes denial. Quarantine requires operations approval in this mission and holds both the rejected data record and affected field work. The executor refuses advanced repair/browser actions in this mission; advanced recovery retains its existing policies. Closure requires all three current approvals and the containment verifier. The code/data/cache/operator/continuity checks stay intact; physical and queue checks require a retained scoped hold instead of field confirmation and resumption.
+
+A successful rehearsal creates version-bound, role-specific Slack review notifications automatically. The worker renders exact stored plan steps, explains each employee's decision and replies with recorded approval status. Identity, channel, incident thread, plan version, threat version and expiration remain server checked. Backticks around an otherwise exact command are accepted; prose never grants authority. Approval records now optionally retain their authenticated channel, and notifications optionally retain their review reference; both are additive JSON snapshot fields and need no relational migration. Legacy snapshots and recovery recording manifests remain readable.
+
+Containment recording/export gates require all three current Slack approvals, delivered requests, independently checked code integrity and the retained affected scope. They do not require a PR or claim code repair. Exports explicitly label the containment objective. The three participants use Slack; the presentation view observes results and the presenter retains stop control.

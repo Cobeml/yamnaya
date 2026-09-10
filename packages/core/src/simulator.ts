@@ -85,8 +85,16 @@ export function affectedSdps(run: Run): string[] {
       ...mismatchedSdps(run),
       ...invalidAssociations(run),
       ...run.quarantinedSdps,
+      ...containmentScope(run),
     ]),
   ];
+}
+export function containmentScope(run: Run): string[] {
+  if (run.scenario !== "credential-leak") return [];
+  return [...new Set(run.observations
+    .filter(o => o.kind === "credential-misuse" && o.trusted)
+    .flatMap(o => o.resourceIds)
+    .filter(id => run.servicePoints.some(s => s.id === id)))];
 }
 export function credentialWorks(
   run: Run,
@@ -300,7 +308,16 @@ export function attack(run: Run, input: Attack, actor: Actor) {
     throw new DomainError("This run is not accepting attacker actions");
   if (run.attackCount >= 12)
     throw new DomainError("Attacker action budget exhausted");
+  if (run.scenario === "credential-leak") {
+    if (input.kind !== "use_leaked_access" || run.attackCount >= 1)
+      throw new DomainError("This surface permits one synthetic leaked-access attempt");
+    if (input.sdpId !== "SDP-001" || input.credentialId !== "cred-integration")
+      throw new DomainError("Request is outside the exposed contractor surface");
+  } else if (input.kind === "use_leaked_access") {
+    throw new DomainError("Leaked-access exercise is unavailable on this surface");
+  }
   const permission = {
+    use_leaked_access: "sync:submit",
     deploy_mapping: "mapping:deploy",
     submit_stale_exchange: "sync:submit",
     forge_support: "support:write",
@@ -324,7 +341,24 @@ export function attack(run: Run, input: Attack, actor: Actor) {
   run.threatVersion++;
   run.verification = [];
   run.status = "incident";
-  if (input.kind === "deploy_mapping") {
+  if (input.kind === "use_leaked_access") {
+    const exposed = run.credentials.filter(c => c.principalId === "contractor");
+    exposed.forEach(c => { c.leakProven = true; });
+    observe(run, "credential-leak", "Synthetic leak detector", "Both contractor access fingerprints match the exposed test fixture. The account's session and integration token are compromised.", exposed.map(c => c.id));
+    const wo = run.workOrders.find(w => w.sdpId === input.sdpId)!;
+    wo.status = "confirmed";
+    wo.evidence = "Unverified update through exposed contractor access";
+    run.transactions.push({ id: "TX-EXPOSED-1", request: {
+      id: "MSG-EXPOSED-1", source: "WMS", verb: "exchange", sdpId: wo.sdpId,
+      oldMeterId: "MTR-1000", meterId: wo.meterId, effectiveAt: run.clock,
+      receivedAt: run.clock, credentialId: input.credentialId,
+    }, status: "failed", stages: ["Source mapping", "SOR filtering", "Status / exception"],
+      error: "Untrusted work update rejected before changing meter associations", attempts: 1,
+      history: ["Ingress validation prevented an unapproved meter association write"] });
+    observe(run, "credential-misuse", "Work update audit", "Exposed contractor access falsely marked one meter work order complete. Its related data update was rejected before changing meter records. Hold the affected data and field dispatch for review.", ["contractor", input.credentialId, wo.id, wo.sdpId, "TX-EXPOSED-1"]);
+    run.metrics.detectedAt ??= run.clock;
+    event(run, "credential.misused", "contractor", "Leaked access used for an unauthorized meter work update; affected scope identified", [wo.sdpId, wo.id, "TX-EXPOSED-1"]);
+  } else if (input.kind === "deploy_mapping") {
     const primary = run.workers.find((w) => w.id === "primary")!;
     if (run.scenario === "benign") {
       run.status = "monitoring";
