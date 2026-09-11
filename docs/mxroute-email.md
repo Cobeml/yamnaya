@@ -41,4 +41,15 @@ SMTP sending does not provide reply ingestion. Start with replies reviewed in we
 
 ## Verification status
 
-No MXroute credentials were inspected, no MXroute account connection was tested, and no message was sent. Provider policy and transport capabilities were researched from official documentation. Application findings were checked against `services/worker/camp-outreach.ts`, `services/worker/camp-updates.ts` and the existing outbound approval workflow.
+On September 11, 2026, the operator supplied mailbox credentials and authorized a single setup test to their personal address. Corrected `CAMP_SMTP_USERNAME` in the private `.env.camps` from a local mailbox name to the full configured sender address. The configured `shadow.mxrouting.net:465` connection passed certificate verification and negotiated TLS; SMTP authentication returned 235.
+
+One message with subject `Yamnaya MXroute setup test` was accepted with SMTP 250 at 22:26 UTC. The local receipt is `runtime/mxroute-setup-test.json`; it was reserved exclusively before sending to prevent an accidental repeat of this setup test. Server acceptance is verified; Gmail inbox placement and received authentication headers are not. No automatic retries or camp sends were started.
+
+The public DNS check found registrar forwarding MX records, an SPF record authorizing only that forwarding service, and no records at `x._domainkey.yamnaya.tv` or `_dmarc.yamnaya.tv`. Required setup work:
+
+- Add `include:mxroute.com` to the existing single SPF record, preserving other senders that are still used. Do not create a second SPF record.
+- Copy the domain-specific DKIM TXT name and full public value from the MXroute control panel into authoritative DNS. The mailbox password does not provide this DNS key. [DKIM setup](https://docs.mxroute.com/docs/dns/dkim.html).
+- Add a monitoring DMARC TXT record at `_dmarc`, initially `v=DMARC1; p=none;`, then assess received authentication before using enforcement. [DMARC setup](https://docs.mxroute.com/docs/dns/dmarc.html).
+- To receive replies at MXroute, replace forwarding MX records with the exact records supplied by its control panel, after recreating any needed mailboxes/aliases there. Existing MX records currently route replies to the registrar's forwarding service. [MX setup](https://docs.mxroute.com/docs/quick-setup.html).
+
+DNS was inspected but not modified. The credentials remain in `.env.camps`; the application still requires the SMTP connector and durable sending controls described above. This setup test does not establish production camp email readiness.
