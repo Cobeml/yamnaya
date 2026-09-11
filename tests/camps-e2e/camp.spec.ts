@@ -1,0 +1,122 @@
+import { test, expect } from "@playwright/test";
+test("operator builds a camp, scopes authority and edits a Quarto publication", async ({
+  page,
+}) => {
+  test.setTimeout(240000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/");
+  await page
+    .getByLabel("Operator password", { exact: true })
+    .fill(process.env.CAMP_OPERATOR_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("button", { name: "Create camp", exact: true }).click();
+  await page
+    .getByLabel("Camp name", { exact: true })
+    .fill("Fieldnotes " + Date.now());
+  await page.locator('select[name="mode"]').selectOption("simulation");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Create camp" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "The black cube" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Start camp", exact: true }).click();
+  await page
+    .getByRole("form", { name: "Create mission" })
+    .getByRole("textbox")
+    .fill("Develop an evidence-linked report about public infrastructure.");
+  await page.getByRole("button", { name: "Set mission", exact: true }).click();
+  await expect(page.locator(".camp-mission-bar")).toContainText(
+    "public infrastructure",
+  );
+  await page.getByRole("button", { name: "Sites", exact: true }).click();
+  await page.getByLabel("Publication title").fill("Infrastructure fieldnotes");
+  await page
+    .getByLabel("Existing GitHub repository")
+    .fill("example/fieldnotes");
+  await page
+    .getByRole("button", { name: "Create publication", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Infrastructure fieldnotes" }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Quarto source")
+    .fill(
+      "---\ntitle: Infrastructure fieldnotes\n---\n\nA concise initial report.\n\n```{python}\nprint('Verified calculation:', 6 * 7)\n```\n",
+    );
+  await page
+    .getByRole("button", { name: "Save revision", exact: true })
+    .click();
+  await expect(page.locator(".camp-tag")).toContainText("v2");
+  await expect(
+    page.getByRole("button", { name: "Publish to GitHub Pages" }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Render site", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Open rendered preview" }),
+  ).toBeVisible({ timeout: 180000 });
+  const previewUrl = await page
+    .getByRole("link", { name: "Open rendered preview" })
+    .getAttribute("href");
+  const preview = await page.context().newPage();
+  await preview.goto(previewUrl!);
+  await expect(
+    preview.getByRole("heading", {
+      name: "Infrastructure fieldnotes",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    preview.getByText("Verified calculation: 42", { exact: true }),
+  ).toBeVisible();
+  await preview.screenshot({
+    path: "runtime/screenshots/quarto-preview.png",
+    fullPage: true,
+  });
+  await preview.close();
+  await page
+    .getByRole("button", { name: "Approve this build", exact: true })
+    .click();
+  await page
+    .getByLabel("Quarto source")
+    .fill(
+      "---\ntitle: Infrastructure fieldnotes\n---\n\nAn updated conclusion.\n",
+    );
+  await page
+    .getByRole("button", { name: "Save revision", exact: true })
+    .click();
+  await expect(page.locator(".camp-tag")).toContainText("v3");
+  await expect(
+    page.getByRole("button", { name: "Publish to GitHub Pages" }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Setup", exact: true }).click();
+  await page
+    .locator('select[name="capability"]')
+    .selectOption("research.fetch");
+  await page.getByLabel("Scope:", { exact: false }).fill("example.org");
+  await page.getByRole("button", { name: "Grant through cube" }).click();
+  await expect(
+    page.locator(".camp-card").filter({ hasText: "research.fetch" }),
+  ).toContainText("example.org");
+  await page.getByRole("button", { name: "Agents", exact: true }).click();
+  await page.getByRole("button", { name: "Square 1", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Square 1", exact: true }),
+  ).toHaveText("X");
+  await page.getByRole("button", { name: "Cube", exact: true }).click();
+  await expect(page.locator("canvas")).toBeVisible();
+  await page.waitForTimeout(2500);
+  await page.screenshot({
+    path: "runtime/screenshots/camps-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "runtime/screenshots/camps-mobile.png",
+    fullPage: true,
+  });
+  expect(errors).toEqual([]);
+});
