@@ -129,6 +129,8 @@ export async function mutateCamp<T>(
       throw new DomainError("Camp changed; reload and retry", "CONFLICT", 409);
     const camp = structuredClone(original);
     const result = fn(camp);
+    if (!options.key && JSON.stringify(camp) === JSON.stringify(original))
+      return { camp: original, result };
     camp.revision++;
     if (options.key) camp.idempotency[options.key] = result ?? null;
     return { camp, result };
@@ -145,6 +147,7 @@ export async function mutateCamp<T>(
     const rows = await tx`SELECT state FROM camps WHERE id=${id} FOR UPDATE`;
     if (!rows.length) throw new DomainError("Camp not found", "NOT_FOUND", 404);
     const changed = transform(rows[0].state as Camp);
+    if (changed.camp === rows[0].state) return changed;
     await tx`UPDATE camps SET revision=${changed.camp.revision},state=${tx.json(changed.camp as never)} WHERE id=${id}`;
     const events = changed.camp.events.filter(
       (e) => e.sequence > (rows[0].state as Camp).events.length,

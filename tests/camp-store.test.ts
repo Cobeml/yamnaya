@@ -48,6 +48,8 @@ it("atomically deduplicates camp effects, rolls back errors and enforces global 
   );
   expect(mutations).toBe(1);
   const before = await readCamp(camps[0].id);
+  await mutateCamp(before.id, () => ({ ok: true }));
+  expect((await readCamp(before.id)).revision).toBe(before.revision);
   await expect(
     mutateCamp(before.id, (c) => {
       c.name = "Partial write";

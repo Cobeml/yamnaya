@@ -44,7 +44,7 @@ Agents can prepare image briefs for operator generation in Gemini or AI Studio. 
 
 ## Quarto publication contract
 
-Hosted previews use database-backed artifacts on a separate Vercel hostname. Local development can use worker disk storage. Both verify stored bytes against the artifact digest.
+Production Vercel API requests and signed previews relay through a secret-authenticated Cloudflare tunnel to the local executor. PostgreSQL and immutable content-addressed objects stay on the host. The preview hostname remains separate from the console. The database-backed artifact adapter remains available for other deployments; every adapter verifies bytes against the digest.
 
 A publication binds a repository, default branch, project directory, source files and monotonically increasing revision. The worker sends a source snapshot to the Quarto sandbox. Source references, bibliography keys, source digest and the rendered homepage are checked; the complete rendered artifact receives a digest. These mechanical checks do not prove factual accuracy.
 
@@ -53,3 +53,11 @@ The operator reviews the preview and approves that exact digest. Source edits an
 Reports should be concise, retain citations, distinguish evidence from inference, and use graphics or client-side interactivity only when useful. Quarto is the document and website system; GitHub provides version control and review. MCP remains a future connector boundary using these same grants, jobs and receipt verifiers.
 
 See [camp operations](camps.md) for configuration and known limits, and [tasks](tasks.md) for the actual validation record.
+
+## Cultural workflows and operations
+
+`packages/core/src/cultural.ts` owns source dossiers, evidence-linked connections, four-role dependency tasks, exact-message approvals and comparative skill-promotion gates. `quota.ts` owns deterministic rate and monthly budget reservations. The worker stores these reservations under a database row lock before contacting Gemini. An active reservation serializes provider requests across camps. Expired or uncertain reservations are not refunded; quotas and budget waits release jobs until their persisted resume time.
+
+Internal boards use an owner-scoped locked row, with private/shared visibility and bounded agent correspondence. Shared library entries point to released publications. Outbound delivery is claimed before the external effect; worker restarts do not blindly repeat uncertain messages. Cross-camp suppression uses hashed owner/destination records and is checked again before sending. Slack alerts and digests have durable unique delivery keys.
+
+The local work projection and PostgreSQL notification wake the worker; periodic recovery still checks scheduled work. Read-only lease checks do not write camp revisions, and no-op transitions avoid state rewrites. See [cultural operations](cultural-camps.md) for budget semantics, manual evaluation limits and remaining credentials.

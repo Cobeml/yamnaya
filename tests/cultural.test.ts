@@ -102,6 +102,9 @@ it("queues only ready dependencies and keeps explicit input waits asleep", () =>
   const tasks = startWorkflow(c, p.id, operator, now);
   advanceWorkflow(c, now);
   expect(c.jobs).toHaveLength(1);
+  expect(() => resumeWorkflow(c, tasks[1].id, operator, now)).toThrow(
+    "Previous role handoff",
+  );
   expect(tasks.map((t) => t.status)).toEqual([
     "working",
     "waiting_input",

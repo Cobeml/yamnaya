@@ -338,6 +338,7 @@ export default function CampConsole() {
   const [signedIn, setSignedIn] = useState(false),
     [loading, setLoading] = useState(true),
     [camps, setCamps] = useState<Summary[]>([]),
+    [showArchived, setShowArchived] = useState(false),
     [id, setId] = useState(""),
     [camp, setCamp] = useState<Camp | null>(null),
     [panel, setPanel] = useState<Panel>("cube"),
@@ -372,7 +373,10 @@ export default function CampConsole() {
         return;
       }
       const result = await api();
-      const target = current || result.camps[0]?.id;
+      const target =
+        current ||
+        result.camps.find((c: Summary) => c.status !== "archived")?.id ||
+        result.camps[0]?.id;
       const rev = target ? await api(target + "/revision") : null;
       const nextCamp = target
         ? latestCamp.current?.id === target &&
@@ -451,26 +455,38 @@ export default function CampConsole() {
             <Plus size={16} />
           </button>
         </div>
+        {signedIn && (
+          <label className="camp-muted">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />{" "}
+            Show archived camps
+          </label>
+        )}
         <nav className="camp-list">
-          {camps.map((c) => (
-            <button
-              key={c.id}
-              className={id === c.id ? "active" : ""}
-              onClick={() => {
-                chooseCamp(c.id);
-                setSelected("");
-              }}
-            >
-              <Tent size={19} />
-              <span>
-                {c.name}
-                <small>
-                  {c.domain} · {c.status}
-                </small>
-              </span>
-              <ChevronRight size={13} />
-            </button>
-          ))}
+          {camps
+            .filter((c) => showArchived || c.status !== "archived")
+            .map((c) => (
+              <button
+                key={c.id}
+                className={id === c.id ? "active" : ""}
+                onClick={() => {
+                  chooseCamp(c.id);
+                  setSelected("");
+                }}
+              >
+                <Tent size={19} />
+                <span>
+                  {c.name}
+                  <small>
+                    {c.domain} · {c.status}
+                  </small>
+                </span>
+                <ChevronRight size={13} />
+              </button>
+            ))}
         </nav>
         {signedIn && !camps.length && (
           <p className="camp-muted">

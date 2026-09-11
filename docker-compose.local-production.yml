@@ -14,4 +14,27 @@ services:
       CAMP_PREVIEW_URL: https://yamnaya-camps-preview.vercel.app
       CAMP_ARTIFACT_STORAGE: file
       CAMP_OBJECT_DIR: /app/runtime/objects
+      CAMP_SEARCH_URL: http://search:8080
     ports: ["127.0.0.1:4114:4114"]
+  search:
+    image: searxng/searxng@sha256:a93b665d10ce0675e8d2124187943111399ba69f384228c51b4cd21fdceda0bc
+    environment:
+      SEARXNG_SECRET: ${CAMP_SEARCH_SECRET:?Configure a search secret}
+    volumes: ["./services/search/settings.yml:/etc/searxng/settings.yml:ro"]
+    networks: [application, public]
+    restart: unless-stopped
+    mem_limit: 512m
+  tunnel:
+    image: cloudflare/cloudflared@sha256:d68fa057087c359c79a255570e891215877ce48aa48ba6f28aac90d8077acbc3
+    user: "1000:1000"
+    command:
+      [tunnel, --no-autoupdate, --config, /etc/cloudflared/config.yml, run]
+    volumes:
+      - ./services/tunnel/config.yml:/etc/cloudflared/config.yml:ro
+      - ./runtime/cloudflare/credentials.json:/etc/cloudflared/credentials.json:ro
+    networks: [application, public]
+    depends_on: [worker]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

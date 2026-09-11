@@ -1,0 +1,6 @@
+tunnel: fec6516c-4021-421a-82ab-681c1389cfe8
+credentials-file: /etc/cloudflared/credentials.json
+ingress:
+  - hostname: yamnaya-api.cobe.dev
+    service: http://worker:4114
+  - service: http_status:404

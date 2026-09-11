@@ -1,3 +1,7 @@
+import {
+  suppressContact,
+  contactSuppressed,
+} from "../../../../lib/camp-suppression";
 import { checkOutbound } from "@yamnaya/core";
 import {
   readBoard,
@@ -318,6 +322,31 @@ export async function POST(req: NextRequest, context: Context) {
     const current = await readCamp(id);
     const actor = await activeActor(req, current);
     const operation = parts.slice(1).join("/");
+    if (
+      operation === "status" &&
+      input.status === "archived" &&
+      current.cultural
+    ) {
+      requireCampOperator(current, actor);
+      await archiveCampThreads(current);
+    }
+    if (operation === "cultural/suppress") {
+      requireCampOperator(current, actor);
+      await suppressContact(
+        current.ownerId,
+        z.string().min(3).max(2000).parse(input.destination),
+      );
+    }
+    const blockedDestinations = new Set<string>();
+    if (operation === "worker/outbound-claim") {
+      requireWorker(req);
+      for (const o of current.cultural?.outbox ?? [])
+        if (
+          o.status === "approved" &&
+          (await contactSuppressed(current.ownerId, o.destination))
+        )
+          blockedDestinations.add(o.destination);
+    }
     if (operation === "board")
       return json(await postBoard(current, actor, input));
     if (
@@ -475,6 +504,21 @@ export async function POST(req: NextRequest, context: Context) {
           requireWorker(req);
           if (camp.mode !== "live" || camp.status !== "running")
             return { draft: null };
+          for (const draft of camp.cultural?.outbox ?? [])
+            if (
+              blockedDestinations.has(draft.destination) &&
+              draft.status === "approved"
+            ) {
+              draft.status = "cancelled";
+              campEvent(
+                camp,
+                "outbound.cancelled",
+                "Destination suppressed across camps",
+                "worker",
+                now,
+                [draft.id],
+              );
+            }
           const o = camp.cultural?.outbox.find(
             (o) =>
               o.status === "approved" &&

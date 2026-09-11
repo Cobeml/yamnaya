@@ -4,6 +4,7 @@ import { DomainError, type Camp, type CampActor } from "@yamnaya/core";
 import { campDatabase, listCamps } from "./camp-store";
 export interface BoardThread {
   id: string;
+  archived?: boolean;
   title: string;
   campId: string;
   visibility: "camp" | "shared";
@@ -18,7 +19,7 @@ export interface BoardThread {
   }[];
 }
 const visible = (t: BoardThread, camp: Camp) =>
-  t.visibility === "shared" || t.campId === camp.id;
+  !t.archived && (t.visibility === "shared" || t.campId === camp.id);
 export async function readBoard(camp: Camp) {
   const rows =
     await campDatabase()`SELECT state FROM camp_boards WHERE owner_id=${camp.ownerId}`;
@@ -102,4 +103,16 @@ export async function sharedLibrary(camp: Camp) {
           deployment: p.deployment,
         })),
     );
+}
+
+export async function archiveCampThreads(camp: Camp) {
+  const db = campDatabase();
+  await db.begin(async (tx) => {
+    const [row] =
+      await tx`SELECT state FROM camp_boards WHERE owner_id=${camp.ownerId} FOR UPDATE`;
+    if (!row) return;
+    const threads = row.state.threads as BoardThread[];
+    for (const t of threads) if (t.campId === camp.id) t.archived = true;
+    await tx`UPDATE camp_boards SET state=${tx.json({ threads } as never)} WHERE owner_id=${camp.ownerId}`;
+  });
 }

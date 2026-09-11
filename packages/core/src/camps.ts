@@ -930,6 +930,13 @@ export function claimCampJob(
       Date.parse(j.leaseUntil ?? "") <= Date.parse(now)
     ) {
       j.status = "indeterminate";
+      const task = camp.cultural?.tasks.find((t) => t.jobId === j.id);
+      if (task && task.status !== "done") {
+        task.status = "waiting_input";
+        task.dependsOn = [];
+        task.output =
+          "Worker lease expired. Inspect completed effects before resuming.";
+      }
       j.receipt = {
         outcome: "indeterminate",
         detail: "Lease expired; reconcile before retrying",
@@ -994,7 +1001,10 @@ export function claimCampJob(
     }
     job.status = "leased";
     const workflowTask = camp.cultural?.tasks.find((t) => t.jobId === job.id);
-    if (workflowTask) workflowTask.status = "working";
+    if (workflowTask) {
+      workflowTask.status = "working";
+      delete workflowTask.notBefore;
+    }
     job.leaseOwner = owner;
     job.leaseUntil = new Date(Date.parse(now) + 360000).toISOString();
     job.attempts++;

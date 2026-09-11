@@ -246,7 +246,7 @@ export default function CulturalPanel({
               {t.notBefore && (
                 <p>Resume after {new Date(t.notBefore).toLocaleString()}</p>
               )}
-              {t.status === "waiting_input" && (
+              {t.status === "waiting_input" && t.dependsOn.length === 0 && (
                 <button onClick={() => submit("cultural/resume")({ id: t.id })}>
                   Inputs ready — resume
                 </button>
@@ -519,7 +519,7 @@ export default function CulturalPanel({
             </section>
           ))}
           <Entry
-            title="Suppress a destination"
+            title="Suppress a destination across your camps"
             fields={[field("destination", "Email or forum URL")]}
             submit={submit("cultural/suppress")}
           />

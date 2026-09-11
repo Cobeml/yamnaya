@@ -411,7 +411,7 @@ export function advanceWorkflow(camp: Camp, now: string) {
       const job = queueCampTurn(
         camp,
         t.role,
-        `Workflow task ${t.id} for publication ${t.publicationId}. ${procedures[t.role]}\nRead cultural/resources and previous task outputs. Submit your handoff using camp_workflow_submit with this task ID. If inputs are insufficient, use camp_workflow_submit with wait=true and explain the missing input.`,
+        `Workflow task ${t.id} for publication ${t.publicationId}. ${procedures[t.role]}\nRead cultural/resources and previous task outputs. After verifying useful work, propose any reusable procedural improvement with camp_propose_skill and describe the evidence; proposals require comparative review before activation. Submit your handoff using camp_workflow_submit with this task ID. If inputs are insufficient, use camp_workflow_submit with wait=true and explain the missing input.`,
         "agent",
         now,
       );
@@ -486,6 +486,17 @@ export function resumeWorkflow(
     )
   )
     throw new DomainError("Task already has scheduled work");
+  if (
+    t.dependsOn.some((id) => {
+      const prior = state(camp).tasks.find((x) => x.id === id);
+      return (
+        prior?.status !== "done" ||
+        camp.jobs.find((j) => j.id === prior.jobId)?.status !== "done"
+      );
+    })
+  )
+    throw new DomainError("Previous role handoff is required before resuming");
+  delete t.notBefore;
   t.status = "ready";
   event(camp, "workflow.resumed", "Operator supplied new input", actor, now, [
     taskId,

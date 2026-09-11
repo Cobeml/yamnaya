@@ -56,3 +56,13 @@ Implemented two four-role focus templates, source provenance and exact quotation
 The operator approved a $10 monthly Gemini budget on 2026-09-11, within their $15 Google account cap. The gateway reserves conservative input plus maximum output/thinking cost in PostgreSQL before requesting Gemini 3.8 Flash. Reservations are not refunded; paid calls stop when verified prices expire. This bounds this application's requests, not other applications using the Google account. Images remain a website handoff.
 
 20 unit regressions, TypeScript, ESLint and production container builds pass. Dedicated local origin, search and tunnel deployment are being verified. GitHub returned 401 and Slack returned not_authed in read-only credential checks; no external message was sent. Gemini and Gmail credentials remain missing. Live model/publication/outreach success is not claimed.
+
+### Local production verification
+
+The cultural workspace is deployed to https://yamnaya.vercel.app, relaying API and isolated previews through the dedicated `yamnaya-api.cobe.dev` tunnel. Local PostgreSQL and immutable file artifacts are active. An unauthenticated origin request returns 403; authenticated health and worker reads return 200. SearXNG returned 36 results for a Jamestown query (one upstream engine unavailable).
+
+Both hosted Playwright workflows passed: the existing Quarto/image/review flow and a two-camp cultural workflow covering private/shared boards, rendering, exact outbound approval and invalidation after source changes. The cultural screenshot was visually inspected. Test camps were archived; no external forum post or email was sent.
+
+The actual pinned Hermes child passed observation, restricted-tool denial, durable checkpoints and a 429 pause/resume test: completed tool calls were retained and not repeated. Tests use a fake provider. Backups restored PostgreSQL into a temporary database and verified every archived artifact object's SHA-256 and index references. Hermes profiles are also included. A nightly 02:15 host-time cron job is installed; copies remain on the same machine.
+
+The two four-agent pilots are provisioned and paused with Quarto scaffolds, 48 unreviewed examples each, workflows and scoped research/render tools. Live reasoning requires the Gemini key. GitHub and Slack credential checks failed; Gmail OAuth and Slack destinations are missing. Remote publication repositories, actual email delivery, actual Google image generation, independent audience impact, and measured learning improvement remain unverified. Full configuration and limitations are in [cultural camps](cultural-camps.md).

@@ -1,3 +1,4 @@
+import { contactSuppressed } from "../../apps/web/lib/camp-suppression";
 import type { App } from "@slack/bolt";
 import type { Camp } from "@yamnaya/core";
 import { campDatabase } from "../../apps/web/lib/camp-store";
@@ -24,6 +25,8 @@ export async function campUpdates(camps: Camp[], slack: App | null) {
     });
     if (draft) {
       try {
+        if (await contactSuppressed(camp.ownerId, draft.destination))
+          throw new Error("Destination suppressed");
         const receipt =
           draft.channel === "gmail"
             ? await sendGmail(draft)

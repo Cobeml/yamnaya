@@ -48,14 +48,14 @@ Browser actions are currently for public, unauthenticated research: GET requests
 - `CAMP_MODEL_API_KEY`, `CAMP_MODEL_BASE_URL`, `CAMP_MODEL`, `CAMP_MODEL_API_MODE`: an OpenAI-compatible provider. Default transport is `chat_completions`; the gateway also exposes Responses. Provider compatibility beyond the tested fixture must be verified with the configured model.
 - `CAMP_GITHUB_TOKEN`: access to contents, pull requests, workflows/Actions and Pages on provisioned repositories. The worker creates a source branch, a PR, and an artifact branch. It never pushes into this checkout.
 - `CAMP_SLACK_BOT_TOKEN`, `CAMP_SLACK_APP_TOKEN`, `CAMP_SLACK_OPERATOR_IDS`: Socket Mode and a comma-separated allowlist of operator user IDs. Bind each camp to a channel and existing thread under Setup. Bot access needs message writing and thread history scopes. Unbound threads and other users cannot instruct the camp.
-- `CAMP_SEARCH_URL`: an optional SearXNG server permitting JSON search. Direct fetch works independently. No search service or paid search subscription is created.
+- `CAMP_SEARCH_URL`: an optional SearXNG server permitting JSON search. Direct fetch works independently. The local-production override includes a private SearXNG service. No paid search subscription is used.
 - `CAMP_PREVIEW_URL`: a separate preview origin, default `http://127.0.0.1:4112`. Preview URLs are signed bearer links; keep them private when their content is private. Rotate `CAMP_PREVIEW_SECRET` to invalidate existing links.
 
 Secrets live in the worker environment. Hermes children receive only a short-lived, camp-and-job-bound token; the model gateway holds the provider key. New containers do not mount the development checkout or Docker socket.
 
 ## Camp life, training and lineage
 
-The scheduler supports a bounded social turn every fifteen minutes and an optional publication-review interval. Defaults are 40 mission turns and four social turns per UTC day, two simultaneous reasoning turns globally, one reasoning writer per agent, twelve Hermes iterations and at most 24 provider requests per invocation. Each request caps output at 4,096 tokens. These are consumption bounds, not a promised dollar budget.
+The scheduler supports a bounded social turn every fifteen minutes and an optional publication-review interval. Defaults are 40 mission turns and four social turns per UTC day, two simultaneous reasoning turns globally, one reasoning writer per agent, twelve Hermes iterations and at most 24 provider requests per invocation. Generic requests cap output at 4,096 tokens. Cultural camps use 8,192 output/thinking tokens and a separate persisted $10 monthly reservation budget. See [cultural camps](cultural-camps.md).
 
 Training is an actual Hermes exercise when credentials are configured. Agents propose reusable procedures. Structural checks flag missing verification and obvious authority/credential problems; the operator reviews and promotes a candidate into an immutable configuration version. Those checks do not establish measured skill improvement. Old configurations remain selectable.
 
@@ -74,3 +74,20 @@ Hermes invocation journals and per-configuration conversation checkpoints live i
 Future MCP servers belong behind the same worker capability interface: declare a tool schema, resource scope, standing-grant policy, idempotency strategy and independent receipt verifier. A model discovering a tool must not implicitly receive permission to call it. MCP is an extension contract in this version, not an enabled connector.
 
 Further useful integrations include scholarly metadata/search, public dataset/object storage, and read-only issue trackers through this same boundary.
+
+## Local production and hosted console
+
+The production console is https://yamnaya.vercel.app. Its API and separate preview hostname relay through https://yamnaya-api.cobe.dev to the local executor. The origin requires a private shared secret in addition to operator/worker authentication. Database access is loopback/internal only. The dedicated tunnel is separate from the existing radio service.
+
+```bash
+docker compose --env-file .env.camps.production -f docker-compose.yml -f docker-compose.local-production.yml up -d --build
+pnpm exec tsx scripts/camps/provision-pilots.ts
+pnpm exec tsx scripts/camps/deploy-env.ts
+vercel deploy --prod --yes
+```
+
+The provisioning script uses `.env.camps` for the local PostgreSQL connection and the production operator identity. It preserves existing pilots and only adds missing research grants. The tunnel manifest currently identifies this host's dedicated tunnel; another installation must create its own tunnel/hostname and private credentials. Secrets and runtime data are ignored by Git.
+
+Neon's transaction quota prevented the attempted export. No remote data was deleted or reported as migrated. Its private status receipt is under `runtime/backups`; the UI displays the migration status. The hosted console now displays the local database's camps. This machine and its internet connection must stay online.
+
+`bash scripts/camps/backup.sh` saves PostgreSQL, immutable artifacts and Hermes profiles, restores the database into a temporary database, verifies artifact hashes/references, and retains seven daily plus four weekly snapshots. `pnpm exec tsx scripts/camps/install-backup.ts` installs a user cron job at 02:15 in the host timezone, preserving other jobs. Backups currently stay on this machine; an off-host backup is still needed for protection against disk loss.
