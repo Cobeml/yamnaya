@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Publication, Camp } from "@yamnaya/core";
 import { canonicalFiles, sha256, publicationSourceDigest } from "./quarto";
-const workflow = `name: Yamnaya Quarto Pages
+export const workflow = `name: Yamnaya Quarto Pages
 run-name: Quarto \${{ inputs.build_id }}
 on:
   workflow_dispatch:

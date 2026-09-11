@@ -68,3 +68,11 @@ The actual pinned Hermes child passed observation, restricted-tool denial, durab
 The two four-agent pilots are provisioned and paused with Quarto scaffolds, 48 unreviewed examples each, workflows and scoped research/render tools. Live reasoning requires the Gemini key. The final private configuration check found Gemini, GitHub and Slack keys absent; Gmail OAuth and Slack destinations are also missing. Remote publication repositories, actual email delivery, actual Google image generation, independent audience impact, and measured learning improvement remain unverified. Full configuration and limitations are in [cultural camps](cultural-camps.md).
 
 Final cutover check: all eight persistent services are running. Both hosted browser workflows passed again after removing unused database/authentication credentials from Vercel; login, local persistence, Quarto rendering and isolated previews continue through the origin relay. The final unit suite has 20 passing regressions; TypeScript, ESLint, production builds and the pinned Hermes supervisor contract pass. Implementation commits are pushed on master. The working pilots remain paused pending private credentials.
+
+### GitHub repository provisioning
+
+On September 11, 2026, the operator supplied a working GitHub token in `.env.camps` and explicitly requested repository creation/setup. Authentication returned Cobeml with repository and workflow scopes. The token was copied privately into production configuration, and the web/worker services were refreshed.
+
+Created public `Cobeml/yamnaya-america` and `Cobeml/yamnaya-china` repositories and uploaded each pilot's 13 scaffold/metadata/workflow files. Every uploaded file was read back at its commit and compared byte-for-byte. Both repositories use `main`, GitHub-owned Actions, read-only default workflow tokens, and GitHub Pages `build_type=workflow`. No Pages workflow was dispatched; public site deployment still uses reviewed camp artifacts.
+
+Added an idempotent provisioning script sharing the worker's exact Pages workflow. TypeScript, targeted ESLint and the existing GitHub publication regression pass. Gemini's dedicated key was not found in the inspected environment files; its location was requested separately. Gmail and Slack setup remain pending.
