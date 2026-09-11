@@ -4,6 +4,7 @@ import {
 } from "../../../../lib/camp-suppression";
 import { checkOutbound } from "@yamnaya/core";
 import {
+  archiveCampThreads,
   readBoard,
   postBoard,
   sharedLibrary,
