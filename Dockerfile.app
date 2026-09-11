@@ -11,11 +11,7 @@ RUN mkdir -p /app/runtime && chown node:node /app/runtime
 
 FROM source AS worker
 USER node
-CMD ["node_modules/.bin/tsx", "services/worker/index.ts"]
-
-FROM source AS code-lab
-USER node
-CMD ["node_modules/.bin/tsx", "services/code-lab/index.ts"]
+CMD ["node_modules/.bin/tsx", "services/worker/camps.ts"]
 
 FROM source-deps AS camp-sandbox
 USER root
@@ -46,5 +42,5 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 COPY --from=web-build --chown=node:node /app/apps/web/.next/standalone ./
 COPY --from=web-build --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
 USER node
-EXPOSE 3100
+EXPOSE 3110
 CMD ["node", "apps/web/server.js"]

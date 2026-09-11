@@ -59,11 +59,8 @@ def run(payload):
         ("camp_edit_publication", "Edit version-controlled Quarto sources in a provisioned publication. Supply id, current version and changed files. Edits invalidate previous renders and approvals. Use concise prose and only useful visuals.", {"id": {"type": "string"}, "version": {"type": "integer"}, "files": {"type": "object", "additionalProperties": {"type": "string"}}}, lambda a: api("publications/edit", a)),
         ("camp_propose_skill", "Stage a reusable procedure learned from an exercise. Include evidence and verification. This does not activate a skill or grant authority.", {"name": {"type": "string"}, "content": {"type": "string"}}, lambda a: api("skills", {**a, "agentId": agent_id})),
         ("camp_game", "Play one legal tic-tac-toe move (0 through 8). Read the current board first.", {"cell": {"type": "integer"}}, lambda a: api("game", a)),
-        ("camp_cyber", "Cyber domain operations: plan, rehearse, execute. Synthetic adversary may only attack using the exposed synthetic surface. Approval is unavailable to agents.", {"operation": {"type": "string"}, "planId": {"type": "string"}, "plan": {"type": "object"}, "action": {"type": "object"}}, lambda a: api("cyber", a)),
     ]
     for name, description, properties, handler in schemas:
-        if agent_id == "attacker" and name not in ["camp_observe", "camp_cyber"]:
-            continue
 
         def call(args, _handler=handler, _name=name, **_kwargs):
             emit("tool.start", tool=_name)
@@ -82,9 +79,7 @@ def run(payload):
         registry.register(name=name, toolset="yamnaya", schema={"name": name, "description": description,
             "parameters": {"type": "object", "properties": properties, "additionalProperties": False}}, handler=call)
 
-    allowed = {name for name, *_ in schemas if agent_id != "attacker" or name in ["camp_observe", "camp_cyber"]}
-    if agent_id != "attacker":
-        allowed.add("memory")
+    allowed = {name for name, *_ in schemas} | {"memory"}
     for entry in list(registry.get_all_entries()):
         if entry.name not in allowed:
             registry.deregister(entry.name)
@@ -110,11 +105,11 @@ def run(payload):
         history = json.loads(checkpoint.read_text())
     agent = AIAgent(model=payload["model"], provider="custom", api_mode=payload.get("apiMode", "chat_completions"),
         base_url=payload["modelProxyUrl"], api_key=token,
-        enabled_toolsets=["yamnaya"] if agent_id == "attacker" else ["yamnaya", "memory"],
+        enabled_toolsets=["yamnaya", "memory"],
         max_iterations=payload.get("maxIterations", 12), max_tokens=4096,
         run_budget_seconds=payload.get("timeoutSeconds", 300),
         quiet_mode=True, skip_context_files=True, skip_background_review=True,
-        skip_memory=agent_id == "attacker", save_trajectories=False,
+        skip_memory=False, save_trajectories=False,
         session_id=payload["sessionId"], ephemeral_system_prompt=payload["systemPrompt"])
     signal.signal(signal.SIGTERM, lambda *_: agent.interrupt(hard_cancel=True))
     try:

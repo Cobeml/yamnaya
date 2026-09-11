@@ -7,7 +7,6 @@ import { startCampGateway } from "./camp-gateway";
 import { publicFetch } from "./public-network";
 import { renderPublication, sha256 } from "./quarto";
 import { saveArtifact, loadArtifact, previewUrl } from "./camp-artifacts";
-import { preparePatch } from "./github";
 import { proposePublication, publishPublication } from "./camp-github";
 
 config({ path: process.env.CAMP_ENV_FILE ?? ".env.camps", quiet: true });
@@ -112,8 +111,7 @@ async function tool(work: CampWork): Promise<unknown> {
   if (
     camp.mode === "simulation" &&
     cap !== "publication.render" &&
-    cap !== "code.execute" &&
-    cap !== "cyber.action"
+    cap !== "code.execute"
   )
     throw new Error(
       "External capabilities require a live camp; simulation does not fabricate receipts",
@@ -206,12 +204,15 @@ async function tool(work: CampWork): Promise<unknown> {
     };
   }
   if (cap === "code.execute") {
-    const response = await sandboxRequest(`${process.env.CAMP_SANDBOX_URL}/code`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ language: args.language, source: args.source }),
-      signal: AbortSignal.timeout(30000),
-    });
+    const response = await sandboxRequest(
+      `${process.env.CAMP_SANDBOX_URL}/code`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: args.language, source: args.source }),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Code execution failed");
     if (result.sourceDigest !== sha256(String(args.source)))
@@ -219,42 +220,6 @@ async function tool(work: CampWork): Promise<unknown> {
     return {
       ...result,
       note: "Execution succeeded. The output still requires domain verification.",
-    };
-  }
-  if (cap === "cyber.action") {
-    const run = camp.cyber;
-    const plan = run?.plans.find((p) => p.id === args.planId);
-    if (
-      !run ||
-      !plan ||
-      plan.version !== args.version ||
-      plan.stepIndex !== args.stepIndex ||
-      plan.status !== "EXECUTING"
-    )
-      throw new Error("Stale cyber step");
-    const action = plan.steps[plan.stepIndex];
-    const proof =
-      action.kind === "prepare_patch"
-        ? await preparePatch(run, plan, action.source, {
-            token: process.env.CAMP_GITHUB_TOKEN,
-            repository: camp.resources?.cyberRepository,
-            codeLab: process.env.CAMP_CODE_LAB_URL,
-            artifactDirectory: process.env.CAMP_ARTIFACT_DIR,
-          })
-        : undefined;
-    await checkWork(work);
-    return {
-      plan: await campApi(
-        camp.id + "/cyber",
-        {
-          operation: "step",
-          planId: plan.id,
-          jobId: job.id,
-          owner: workerId,
-          proof,
-        },
-        "cyber-step-" + job.id,
-      ),
     };
   }
   if (cap === "github.propose")
@@ -417,52 +382,6 @@ while (!stopping) {
     if (Date.now() > nextSchedule) {
       const { camps } = await campApi("worker");
       for (const camp of camps as Camp[]) {
-        if (
-          camp.status === "running" &&
-          camp.cyber &&
-          !["monitoring", "stopped", "verified"].includes(camp.cyber.status)
-        ) {
-          const run = camp.cyber;
-          const worker = run.workers.find(
-            (w) => w.status === "running" && w.available,
-          );
-          const artifact = run.artifacts.find(
-            (a) => a.id === worker?.artifactId,
-          );
-          const tx = run.transactions.find(
-            (t) =>
-              t.status === "queued" &&
-              !run.quarantinedSdps.includes(t.request.sdpId),
-          );
-          let mapping: unknown;
-          if (artifact && tx && artifact.validation === "tested") {
-            const response = await fetch(
-              (process.env.CAMP_CODE_LAB_URL ?? "http://code-lab:4100") +
-                "/map",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  source: artifact.source,
-                  associations: run.mdm,
-                  request: tx.request,
-                }),
-                signal: AbortSignal.timeout(10000),
-              },
-            );
-            const result = await response.json();
-            if (!response.ok || result.sourceDigest !== sha256(artifact.source))
-              throw new Error(
-                "Deployed cyber mapping execution failed verification",
-              );
-            mapping = result.result;
-          }
-          await campApi(
-            camp.id + "/worker/cyber-tick",
-            { expectedRevision: camp.revision, mapping },
-            "cyber-tick-" + run.tick,
-          ).catch(() => {});
-        }
         await campApi(`${camp.id}/worker/schedule`, {});
       }
       nextSchedule = Date.now() + 15000;

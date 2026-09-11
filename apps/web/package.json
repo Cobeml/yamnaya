@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0 --port 3100",
+    "dev": "next dev --hostname 0.0.0.0 --port 3110",
     "build": "next build",
-    "start": "next start --hostname 0.0.0.0 --port 3100"
+    "start": "next start --hostname 0.0.0.0 --port 3110"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",

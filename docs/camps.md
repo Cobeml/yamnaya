@@ -12,7 +12,7 @@ pnpm camps:setup
 pnpm camps:up
 ```
 
-Open **http://localhost:3110** and use `CAMP_OPERATOR_PASSWORD` from the private `.env.camps` file. Setup preserves existing configuration. The database, Hermes profiles, and rendered artifacts use separate `yamnaya-camps` volumes. The old utility stack is preserved in `docker-compose.cyber.yml`.
+Open **http://localhost:3110** and use `CAMP_OPERATOR_PASSWORD` from the private `.env.camps` file. Setup preserves existing configuration. The database, Hermes profiles, and rendered artifacts use separate `yamnaya-camps` volumes.
 
 `pnpm camps:down` stops the new stack while retaining its volumes. Run `pnpm camps:up` after changing runtime credentials or code. On hosts without pnpm, prefix commands with `npm exec --yes --package=pnpm@10.32.1 -- pnpm`.
 
@@ -40,7 +40,6 @@ No GitHub repository is created automatically. Repository access, Actions, Pages
 | github.propose | owner/repository | publicationId |
 | publication.publish | owner/repository | publicationId; a current build approval is also required |
 | slack.send | bound channel ID | text |
-| cyber.action | synthetic | versioned plan step, scheduled by worker |
 
 Browser actions are currently for public, unauthenticated research: GET requests only, no downloads, popup browsing, service workers, WebSockets, or form submissions. Each resource and redirect is checked against public IP ranges and granted hostnames, with DNS resolution pinned for the fetch. Cross-host resources require corresponding grants. Browser sessions expire after ten idle minutes.
 
@@ -52,7 +51,7 @@ Browser actions are currently for public, unauthenticated research: GET requests
 - `CAMP_SEARCH_URL`: an optional SearXNG server permitting JSON search. Direct fetch works independently. No search service or paid search subscription is created.
 - `CAMP_PREVIEW_URL`: a separate preview origin, default `http://127.0.0.1:4112`. Preview URLs are signed bearer links; keep them private when their content is private. Rotate `CAMP_PREVIEW_SECRET` to invalidate existing links.
 
-The new setup does not copy old provider or connector credentials. Secrets live in the worker environment. Hermes children receive only a short-lived, camp-and-job-bound token; the model gateway holds the provider key. New containers do not mount the development checkout or Docker socket.
+Secrets live in the worker environment. Hermes children receive only a short-lived, camp-and-job-bound token; the model gateway holds the provider key. New containers do not mount the development checkout or Docker socket.
 
 ## Camp life, training and lineage
 
@@ -61,12 +60,6 @@ The scheduler supports a bounded social turn every fifteen minutes and an option
 Training is an actual Hermes exercise when credentials are configured. Agents propose reusable procedures. Structural checks flag missing verification and obvious authority/credential problems; the operator reviews and promotes a candidate into an immutable configuration version. Those checks do not establish measured skill improvement. Old configurations remain selectable.
 
 Deriving an agent combines one or two selected active configurations and their approved skills, records parent references, and creates an apprentice. It does not inherit private conversation history or explicit agent grants. A camp-wide wildcard grant applies to new members of that camp. Cloning a camp copies configurations into a paused camp with no copied grants or publications. Private Hermes memory persists per camp and agent.
-
-## Cyber domain
-
-The deterministic utility model is in `packages/core/src/domains/cyber`. Compatibility exports retain the existing tests and utility APIs. New cyber camps use Hermes for the defender and synthetic adversary. The cube shows plans, rehearsals, role approvals, and execution controls; the existing role and revision requirements remain enforced. Grant `cyber.action / synthetic` to the defender to run queued steps.
-
-Cyber camp creation offers credential containment, mapping recovery, lateral pivot and injection scenarios. Code patch execution also retains the isolated 32-case mapping test and incident PR connector; bind a recovery repository under Setup before a live patch operation. The Utility archive link opens the preserved service on port 3100. The compatibility page `/cyber` requires the old utility environment and accesses its separate API/state, not the selected camp. The full historical demo and its deployment remain available through the archive branch and legacy Compose file.
 
 ## Failures and recovery
 
@@ -80,4 +73,4 @@ Hermes invocation journals and per-configuration conversation checkpoints live i
 
 Future MCP servers belong behind the same worker capability interface: declare a tool schema, resource scope, standing-grant policy, idempotency strategy and independent receipt verifier. A model discovering a tool must not implicitly receive permission to call it. MCP is an extension contract in this version, not an enabled connector.
 
-Quarto/GitHub replace Notion. No Notion or Home Assistant integration is included. Further useful integrations include scholarly metadata/search, public dataset/object storage, and read-only issue trackers through this same boundary.
+Further useful integrations include scholarly metadata/search, public dataset/object storage, and read-only issue trackers through this same boundary.

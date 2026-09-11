@@ -45,14 +45,13 @@ services:
       CAMP_API_URL: http://web:3110
       CAMP_HERMES_URL: http://hermes:8765
       CAMP_SANDBOX_URL: http://sandbox:4111
-      CAMP_CODE_LAB_URL: http://code-lab:4100
       CAMP_BROWSER_URL: http://browser:4113
       CAMP_MODEL_PROXY_URL: http://worker:4112/v1
       CAMP_GATEWAY_HOST: 0.0.0.0
       CAMP_ARTIFACT_DIR: /app/runtime/artifacts
     ports: ["127.0.0.1:4112:4112"]
     volumes: [camp-artifacts:/app/runtime]
-    depends_on: [web, hermes, sandbox, browser, code-lab]
+    depends_on: [web, hermes, sandbox, browser]
     networks: [application, runtime, execution, browsing, public]
     restart: unless-stopped
   hermes:
@@ -77,15 +76,6 @@ services:
     mem_limit: 2g
     cpus: 2
     pids_limit: 128
-    networks: [execution]
-    restart: unless-stopped
-  code-lab:
-    build: { context: ., dockerfile: Dockerfile.app, target: code-lab }
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    mem_limit: 512m
     networks: [execution]
     restart: unless-stopped
   browser:

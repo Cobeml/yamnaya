@@ -1,8 +1,5 @@
 import { z } from "zod";
-import { DomainError, type Run } from "./domains/cyber/contracts";
-import { scenarioSchema } from "./domains/cyber/contracts";
-import { seedRun } from "./domains/cyber/seed";
-import { defenderView, attackerView } from "./domains/cyber/ontology";
+import { DomainError } from "./errors";
 
 export const capabilityNames = [
   "research.search",
@@ -16,7 +13,6 @@ export const capabilityNames = [
   "github.propose",
   "publication.publish",
   "slack.send",
-  "cyber.action",
 ] as const;
 export type CapabilityName = (typeof capabilityNames)[number];
 export type CampActor = {
@@ -159,7 +155,7 @@ export interface Camp {
   schemaVersion: 1;
   id: string;
   name: string;
-  domain: "research" | "cyber";
+  domain: "research" | "general";
   status: "paused" | "running" | "archived";
   mode: "live" | "simulation";
   revision: number;
@@ -196,15 +192,12 @@ export interface Camp {
     next: "X" | "O";
     winner: "X" | "O" | "draw" | null;
   };
-  resources?: { cyberRepository?: string };
-  cyber?: Run;
 }
 
 const identity = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/);
 export const campInputSchema = z.object({
-  cyberScenario: scenarioSchema.default("credential-leak"),
   name: z.string().trim().min(2).max(100),
-  domain: z.enum(["research", "cyber"]).default("research"),
+  domain: z.enum(["research", "general"]).default("research"),
   mode: z.enum(["live", "simulation"]).default("live"),
 });
 export const instructionSchema = z.object({
@@ -302,48 +295,32 @@ export function createCamp(
   now: string,
 ): Camp {
   const input = campInputSchema.parse(raw);
-  const roster =
-    input.domain === "research"
-      ? [
-          [
-            "ada",
-            "Ada",
-            "Coordinator",
-            "Frame the question, assign bounded tasks, and edit for clarity.",
-          ],
-          [
-            "noor",
-            "Noor",
-            "Researcher",
-            "Investigate primary sources, preserve citations and examine adjacent domains.",
-          ],
-          [
-            "ivo",
-            "Ivo",
-            "Skeptic",
-            "Challenge weak claims and assumptions. Offer useful competing explanations.",
-          ],
-          [
-            "theo",
-            "Theo",
-            "Synthesist",
-            "Build concise Quarto reports and websites. Let visuals serve the argument.",
-          ],
-        ]
-      : [
-          [
-            "defender",
-            "Ada",
-            "Defender",
-            "Investigate and restore the synthetic cyber mission under its current policy.",
-          ],
-          [
-            "attacker",
-            "Ivo",
-            "Synthetic adversary",
-            "Use only the explicitly exposed synthetic capabilities. Never request evaluator truth.",
-          ],
-        ];
+  const roster = [
+    [
+      "ada",
+      "Ada",
+      "Coordinator",
+      "Frame the question, assign bounded tasks, and edit for clarity.",
+    ],
+    [
+      "noor",
+      "Noor",
+      "Researcher",
+      "Investigate primary sources, preserve citations and examine adjacent domains.",
+    ],
+    [
+      "ivo",
+      "Ivo",
+      "Skeptic",
+      "Challenge weak claims and assumptions. Offer useful competing explanations.",
+    ],
+    [
+      "theo",
+      "Theo",
+      "Synthesist",
+      "Build concise Quarto reports and websites. Let visuals serve the argument.",
+    ],
+  ];
   const agents: CampAgent[] = roster.map(([agentId, name, role, persona]) => ({
     id: agentId,
     name,
@@ -397,13 +374,6 @@ export function createCamp(
     },
     game: { board: Array(9).fill(null), next: "X", winner: null },
   };
-  if (input.domain === "cyber")
-    camp.cyber = seedRun(
-      `RUN-${id.toUpperCase()}`,
-      input.cyberScenario,
-      input.mode,
-      now,
-    );
   campEvent(
     camp,
     "camp.created",
@@ -416,17 +386,8 @@ export function createCamp(
 
 export function campView(camp: Camp, actor: CampActor) {
   requireCampActor(camp, actor);
-  const { idempotency: _keys, cyber, ...visible } = camp;
+  const { idempotency: _keys, ...visible } = camp;
   void _keys;
-  if (actor.kind === "agent" && actor.agentId === "attacker")
-    return {
-      id: camp.id,
-      revision: camp.revision,
-      status: camp.status,
-      domain: camp.domain,
-      agents: visible.agents.filter((a) => a.id === actor.agentId),
-      cyber: cyber ? attackerView(cyber) : undefined,
-    };
   if (actor.kind === "agent")
     return {
       id: camp.id,
@@ -449,15 +410,13 @@ export function campView(camp: Camp, actor: CampActor) {
       grants: camp.grants.filter(
         (g) => !g.revoked && (g.agentId === "*" || g.agentId === actor.agentId),
       ),
-      evidence: camp.evidence
-        .slice(-30)
-        .map((e) => ({
-          id: e.id,
-          title: e.title,
-          url: e.url,
-          digest: e.digest,
-          excerpt: e.excerpt.slice(0, 300),
-        })),
+      evidence: camp.evidence.slice(-30).map((e) => ({
+        id: e.id,
+        title: e.title,
+        url: e.url,
+        digest: e.digest,
+        excerpt: e.excerpt.slice(0, 300),
+      })),
       publications: camp.publications.map((p) => ({
         id: p.id,
         title: p.title,
@@ -488,11 +447,10 @@ export function campView(camp: Camp, actor: CampActor) {
           status: j.status,
           receipt: j.receipt,
         })),
-      cyber: cyber ? defenderView(cyber) : undefined,
       resourceHelp:
         "Use camp_observe with resource publication, id, file and offset to read source chunks; resource evidence and id retrieves a source. Overview is bounded.",
     };
-  return { ...visible, cyber: cyber ? defenderView(cyber) : undefined };
+  return visible;
 }
 
 export function setCampStatus(
@@ -588,7 +546,7 @@ export function instructCamp(
   const recipients =
     input.recipientId === "camp"
       ? actor.kind === "operator"
-        ? camp.agents.filter((a) => a.id !== "attacker")
+        ? camp.agents
         : []
       : camp.agents.filter(
           (a) => a.id === input.recipientId && a.id !== actor.agentId,
@@ -753,10 +711,6 @@ export function editPublication(
   now: string,
 ) {
   requireCampActor(camp, actor);
-  requireCondition(
-    actor.kind !== "agent" || actor.agentId !== "attacker",
-    "Synthetic adversaries cannot author publications",
-  );
   const p = camp.publications.find((p) => p.id === id);
   requireCondition(p, "Publication not found", "NOT_FOUND");
   requireCondition(
@@ -848,7 +802,6 @@ export function toolScope(
   if (capability === "slack.send")
     return camp.slack?.channelId ?? "unconfigured";
   if (capability === "code.execute") return camp.id;
-  if (capability === "cyber.action") return "synthetic";
   return "public-web";
 }
 export function requestCampTool(
@@ -865,10 +818,6 @@ export function requestCampTool(
   );
   const input = toolRequestSchema.parse(raw);
   const agentId = actor.agentId ?? camp.agents[0].id;
-  requireCondition(
-    agentId !== "attacker" || input.capability === "cyber.action",
-    "Synthetic adversary capability denied",
-  );
   const scope = toolScope(camp, input.capability, input.arguments);
   requireCondition(
     actor.kind === "operator" ||
@@ -929,16 +878,6 @@ export function checkCampJob(camp: Camp, job: CampJob, now: string) {
       "Capability revoked or expired",
     );
     const args = job.input.arguments as Record<string, unknown>;
-    if (cap === "cyber.action") {
-      const plan = camp.cyber?.plans.find((p) => p.id === args.planId);
-      requireCondition(
-        plan?.status === "EXECUTING" &&
-          plan.version === args.version &&
-          plan.stepIndex === args.stepIndex,
-        "Cyber plan step changed",
-        "CONFLICT",
-      );
-    }
     if (job.input.sourceVersion !== undefined) {
       const p = camp.publications.find((p) => p.id === args.publicationId);
       requireCondition(
@@ -992,7 +931,14 @@ export function claimCampJob(
   }
   for (const job of camp.jobs.filter((j) => j.status === "queued")) {
     const reasoning = job.kind !== "tool";
-    if (!reasoning && ["publication.render","code.execute"].includes(String(job.input.capability)) && sandboxSlots < 1) continue;
+    if (
+      !reasoning &&
+      ["publication.render", "code.execute"].includes(
+        String(job.input.capability),
+      ) &&
+      sandboxSlots < 1
+    )
+      continue;
     if (
       reasoning &&
       (agentSlots < 1 ||

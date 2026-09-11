@@ -21,7 +21,6 @@ import {
   Users,
   Settings2,
   X,
-  ShieldCheck,
   Radio,
   ChevronRight,
   LogOut,
@@ -322,7 +321,7 @@ function PublicationEditor({
     </article>
   );
 }
-export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiveUrl?:string}) {
+export default function CampConsole() {
   const [signedIn, setSignedIn] = useState(false),
     [loading, setLoading] = useState(true),
     [camps, setCamps] = useState<Summary[]>([]),
@@ -440,9 +439,6 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
             <br />
             Many possible missions.
           </p>
-          <a href={archiveUrl}>
-            <ShieldCheck size={15} /> Utility archive <ArrowUpRight size={12} />
-          </a>
           <button
             onClick={() => void act(() => api("logout", {}))}
             disabled={!signedIn}
@@ -456,8 +452,8 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
           <div>
             <span className="camp-eyebrow">
               FIELD STATION /{" "}
-              {camp?.domain === "cyber"
-                ? "CYBER OPERATIONS"
+              {camp?.domain === "general"
+                ? "COMPUTER MANEUVER"
                 : "RESEARCH & PUBLISHING"}
             </span>
             <h1>{camp?.name ?? "An open field"}</h1>
@@ -628,95 +624,6 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
                   </label>
                   <button className="camp-primary">Set mission</button>
                 </Form>
-                {camp.cyber && (
-                  <section className="camp-card">
-                    <h3>Cyber mission</h3>
-                    <p>
-                      {camp.cyber.status} · {camp.cyber.plans.length} plans
-                    </p>
-                    {camp.cyber.plans.map((plan) => (
-                      <details key={plan.id}>
-                        <summary>
-                          {plan.title} / v{plan.version} · {plan.status}
-                        </summary>
-                        <p>{plan.rationale}</p>
-                        <ol>
-                          {plan.steps.map((step, i) => (
-                            <li key={i}>
-                              {i < plan.stepIndex ? "✓ " : ""}
-                              {step.kind.replaceAll("_", " ")}
-                            </li>
-                          ))}
-                        </ol>
-                        <div className="camp-row">
-                          <button
-                            onClick={() =>
-                              void act(() =>
-                                post("cyber", {
-                                  operation: "rehearse",
-                                  planId: plan.id,
-                                }),
-                              )
-                            }
-                          >
-                            Rehearse
-                          </button>
-                          <button
-                            onClick={() =>
-                              void act(() =>
-                                post("cyber", {
-                                  operation: "execute",
-                                  planId: plan.id,
-                                }),
-                              )
-                            }
-                          >
-                            Queue execution
-                          </button>
-                        </div>
-                        {plan.requiredRoles.map((role) => (
-                          <button
-                            key={role}
-                            disabled={plan.approvals.some(
-                              (a) =>
-                                a.role === role && a.decision === "approved",
-                            )}
-                            onClick={() =>
-                              void act(() =>
-                                post("cyber", {
-                                  operation: "approve",
-                                  planId: plan.id,
-                                  version: plan.version,
-                                  role,
-                                  decision: "approved",
-                                }),
-                              )
-                            }
-                          >
-                            Approve as {role}
-                          </button>
-                        ))}
-                      </details>
-                    ))}
-                    <Form
-                      onSubmit={(d) =>
-                        void act(() =>
-                          post("cyber", {
-                            operation: "confirm-field",
-                            sdpIds: field(d, "sdps").trim().split(/\s+/),
-                          }),
-                        )
-                      }
-                    >
-                      <Field
-                        label="Confirmed field service points"
-                        name="sdps"
-                        placeholder="SDP-001 SDP-002"
-                      />
-                      <button>Record operations confirmation</button>
-                    </Form>
-                  </section>
-                )}
                 <div className="camp-section-title">
                   CAMP CONVERSATION <span>{camp.messages.length}</span>
                 </div>
@@ -1134,26 +1041,19 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
                     Agent
                     <select name="agent">
                       <option value="*">All camp agents</option>
-                      {camp.agents
-                        .filter((a) => a.id !== "attacker")
-                        .map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
+                      {camp.agents.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="camp-field">
                     Capability
                     <select name="capability">
-                      {capabilityNames
-                        .filter(
-                          (c) =>
-                            c !== "cyber.action" || camp.domain === "cyber",
-                        )
-                        .map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
+                      {capabilityNames.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
                     </select>
                   </label>
                   <Field
@@ -1169,30 +1069,6 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
                   />
                   <button className="camp-primary">Grant through cube</button>
                 </Form>
-                {camp.domain === "cyber" && (
-                  <Form
-                    onSubmit={(d) =>
-                      void act(() =>
-                        post("settings", {
-                          cyberRepository: field(d, "repository"),
-                        }),
-                      )
-                    }
-                  >
-                    <Field
-                      label="Cyber recovery GitHub repository"
-                      name="repository"
-                      value={camp.resources?.cyberRepository}
-                      placeholder="owner/recovery-lab"
-                    />
-                    <button>Bind recovery repository</button>
-                    <p className="camp-muted">
-                      Grant cyber.action with scope synthetic to execute
-                      authorized plans. Original role approvals and independent
-                      verification still apply.
-                    </p>
-                  </Form>
-                )}
                 <div className="camp-section-title">CAMP RHYTHM</div>
                 <Form
                   onSubmit={(d) =>
@@ -1325,7 +1201,6 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
                   const c = await api("", {
                     name: field(d, "name"),
                     domain: field(d, "domain"),
-                    cyberScenario: field(d, "cyberScenario"),
                     mode: field(d, "mode"),
                   });
                   setId(c.id);
@@ -1343,22 +1218,7 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
                 Purpose
                 <select name="domain">
                   <option value="research">Research & Quarto publishing</option>
-                  <option value="cyber">Synthetic cyber mission</option>
-                </select>
-              </label>
-              <label className="camp-field">
-                Cyber scenario (cyber camps only)
-                <select name="cyberScenario">
-                  <option value="credential-leak">
-                    Credential containment
-                  </option>
-                  <option value="contractor">
-                    Code and meter-data recovery
-                  </option>
-                  <option value="pivot">Lateral pivot</option>
-                  <option value="injection">
-                    Untrusted support instructions
-                  </option>
+                  <option value="general">General purpose</option>
                 </select>
               </label>
               <label className="camp-field">
@@ -1371,9 +1231,8 @@ export default function CampConsole({archiveUrl="http://localhost:3100"}:{archiv
                 </select>
               </label>
               <p className="camp-muted">
-                Four analysts arrive for research. Cyber camps receive a
-                defender and a synthetic adversary. Start the camp and provision
-                tools when ready.
+                Four analysts arrive with complementary roles. Give the camp a
+                mission and provision tools when ready.
               </p>
               <button className="camp-primary" disabled={busy}>
                 Create camp <Plus size={15} />

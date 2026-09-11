@@ -26,19 +26,6 @@ import {
   completeCampJob,
   type Camp,
   type CampActor,
-  attack,
-  hasGrant,
-  authorize,
-  advance,
-  confirmField,
-  createPlan,
-  rehearse,
-  enqueuePlan,
-  executeStep,
-  approve,
-  type Actor,
-  type Attack,
-  type PlanInput,
 } from "@yamnaya/core";
 import {
   listCamps,
@@ -171,8 +158,6 @@ export async function GET(req: NextRequest, context: Context) {
     const camp = await readCamp(parts[0]);
     const actor = await activeActor(req, camp);
     if (parts[1] === "resources") {
-      if (actor.kind === "agent" && actor.agentId === "attacker")
-        throw new DomainError("Resource unavailable", "FORBIDDEN", 403);
       const query = req.nextUrl.searchParams;
       if (query.get("resource") === "evidence") {
         const evidence = camp.evidence.find((e) => e.id === query.get("id"));
@@ -205,8 +190,6 @@ export async function GET(req: NextRequest, context: Context) {
     }
     if (parts[1] === "events") {
       const after = Number(req.nextUrl.searchParams.get("after") ?? 0);
-      if (actor.kind === "agent" && actor.agentId === "attacker")
-        return json({ events: [] });
       return json({
         revision: camp.revision,
         events: camp.events.filter((e) => e.sequence > after).slice(0, 200),
@@ -280,7 +263,6 @@ export async function POST(req: NextRequest, context: Context) {
         {
           name: input.name ?? `${current.name} II`,
           domain: current.domain,
-          cyberScenario: current.cyber?.scenario,
           mode: current.mode,
         },
         actor.id,
@@ -508,14 +490,6 @@ export async function POST(req: NextRequest, context: Context) {
               .min(0)
               .max(10080)
               .parse(input.refreshMinutes);
-          if (input.cyberRepository !== undefined)
-            camp.resources = {
-              ...camp.resources,
-              cyberRepository: z
-                .string()
-                .regex(/^[\w.-]+\/[\w.-]+$/)
-                .parse(input.cyberRepository),
-            };
           if (input.slack)
             camp.slack = z
               .object({
@@ -532,52 +506,9 @@ export async function POST(req: NextRequest, context: Context) {
           );
           return { ok: true };
         }
-        if (operation === "worker/cyber-tick") {
-          requireWorker(req);
-          if (camp.status !== "running" || !camp.cyber)
-            throw new DomainError("Cyber camp is not running", "CONFLICT", 409);
-          advance(
-            camp.cyber,
-            input.mapping as import("@yamnaya/core").Association[] | undefined,
-          );
-          return { tick: camp.cyber.tick };
-        }
         if (operation === "worker/schedule") {
           requireWorker(req);
           if (camp.status !== "running") return { ok: true };
-          if (
-            camp.cyber &&
-            hasGrant(camp, "defender", "cyber.action", "synthetic", now)
-          )
-            for (const plan of camp.cyber.plans.filter(
-              (p) => p.status === "EXECUTING",
-            )) {
-              const exists = camp.jobs.some(
-                (j) =>
-                  j.kind === "tool" &&
-                  j.input.capability === "cyber.action" &&
-                  (j.input.arguments as Record<string, unknown>)?.planId ===
-                    plan.id &&
-                  (j.input.arguments as Record<string, unknown>)?.stepIndex ===
-                    plan.stepIndex &&
-                  (j.input.arguments as Record<string, unknown>)?.version ===
-                    plan.version,
-              );
-              if (!exists)
-                requestCampTool(
-                  camp,
-                  {
-                    capability: "cyber.action",
-                    arguments: {
-                      planId: plan.id,
-                      stepIndex: plan.stepIndex,
-                      version: plan.version,
-                    },
-                  },
-                  { id: "worker", kind: "worker" },
-                  now,
-                );
-            }
           if (
             camp.schedule.socialEnabled &&
             Date.parse(camp.schedule.nextSocialAt) <= Date.now() &&
@@ -588,14 +519,13 @@ export async function POST(req: NextRequest, context: Context) {
           ) {
             const a =
               camp.agents[camp.budgets.socialTurns % camp.agents.length];
-            if (a.id !== "attacker")
-              queueCampTurn(
-                camp,
-                a.id,
-                "You have a quiet moment in camp. Make one useful, brief remark to a colleague or play one legal move of tic-tac-toe. Silence is fine. Do not invent completed mission work.",
-                "social",
-                now,
-              );
+            queueCampTurn(
+              camp,
+              a.id,
+              "You have a quiet moment in camp. Make one useful, brief remark to a colleague or play one legal move of tic-tac-toe. Silence is fine. Do not invent completed mission work.",
+              "social",
+              now,
+            );
             camp.schedule.nextSocialAt = new Date(
               Date.now() + 15 * 60000,
             ).toISOString();
@@ -731,9 +661,24 @@ export async function POST(req: NextRequest, context: Context) {
             now,
             [j.id],
           );
-          const agent = camp.agents.find(a=>a.id===j.agentId)!;
-          if (type === "tool.start") agent.activity = String(input.detail).startsWith("camp_tool:") ? "cube" : String(input.detail).startsWith("camp_message:") ? "talking" : String(input.detail).startsWith("camp_game:") ? "playing" : j.kind === "training" ? "training" : "thinking";
-          if (type === "tool.end") agent.activity = j.kind === "social" ? "talking" : j.kind === "training" ? "training" : "thinking";
+          const agent = camp.agents.find((a) => a.id === j.agentId)!;
+          if (type === "tool.start")
+            agent.activity = String(input.detail).startsWith("camp_tool:")
+              ? "cube"
+              : String(input.detail).startsWith("camp_message:")
+                ? "talking"
+                : String(input.detail).startsWith("camp_game:")
+                  ? "playing"
+                  : j.kind === "training"
+                    ? "training"
+                    : "thinking";
+          if (type === "tool.end")
+            agent.activity =
+              j.kind === "social"
+                ? "talking"
+                : j.kind === "training"
+                  ? "training"
+                  : "thinking";
           return { ok: true };
         }
         if (operation === "worker/complete") {
@@ -754,28 +699,7 @@ export async function POST(req: NextRequest, context: Context) {
           const output = input.result as Record<string, unknown> | undefined;
           // Persist externally checked results only when the worker still holds the lease and the target revision is unchanged.
           if (receipt.outcome === "verified" && j.kind === "tool") {
-            if (j.input.capability === "cyber.action") {
-              const args = j.input.arguments as Record<string, unknown>;
-              const p = camp.cyber?.plans.find((p) => p.id === args.planId);
-              const actionId =
-                camp.cyber?.id +
-                ":" +
-                args.planId +
-                ":v" +
-                args.version +
-                ":" +
-                args.stepIndex;
-              if (
-                !p?.receipts.some(
-                  (r) => r.actionId === actionId && r.status === "applied",
-                )
-              )
-                throw new DomainError(
-                  "Cyber action receipt is missing",
-                  "CONFLICT",
-                  409,
-                );
-            } else checkCampJob(camp, j, now);
+            checkCampJob(camp, j, now);
             const args = j.input.arguments as Record<string, unknown>;
             const p = camp.publications.find(
               (p) => p.id === args.publicationId,
@@ -863,89 +787,6 @@ export async function POST(req: NextRequest, context: Context) {
           return match
             ? approvePublication(camp, match[1], Number(match[2]), human, now)
             : instructCamp(camp, { text }, human, now);
-        }
-        if (operation === "cyber") {
-          if (!camp.cyber)
-            throw new DomainError("Not a cyber camp", "CONFLICT", 409);
-          const run = camp.cyber;
-          if (actor.kind === "agent" && actor.agentId === "attacker") {
-            if (input.operation !== "attack")
-              throw new DomainError(
-                "Adversary operation denied",
-                "FORBIDDEN",
-                403,
-              );
-            return attack(run, input.action as Attack, {
-              id: "attacker",
-              role: "attacker",
-              channel: "tool",
-            });
-          }
-          if (input.operation === "confirm-field") {
-            requireCampOperator(camp, actor);
-            confirmField(run, z.array(z.string()).parse(input.sdpIds), {
-              id: actor.id,
-              role: "operations",
-              channel: "web",
-            });
-            return { ok: true };
-          }
-          const defender: Actor = {
-            id: "defender",
-            role: "defender",
-            channel: "tool",
-          };
-          if (input.operation === "plan")
-            return createPlan(run, input.plan as PlanInput, defender);
-          if (input.operation === "rehearse")
-            return rehearse(run, String(input.planId), defender);
-          if (input.operation === "execute")
-            return enqueuePlan(run, String(input.planId), defender);
-          if (input.operation === "approve") {
-            requireCampOperator(camp, actor);
-            const role = z
-              .enum(["security", "platform", "operations"])
-              .parse(input.role);
-            return approve(
-              run,
-              String(input.planId),
-              z.number().int().parse(input.version),
-              z.enum(["approved", "rejected"]).parse(input.decision),
-              { id: actor.id, role, channel: "web" },
-            );
-          }
-          if (input.operation === "step") {
-            requireWorker(req);
-            const job = requireCampLease(
-              camp,
-              String(input.jobId),
-              String(input.owner),
-              now,
-            );
-            checkCampJob(camp, job, now);
-            const args = job.input.arguments as Record<string, unknown>;
-            const plan = run.plans.find((p) => p.id === input.planId);
-            if (
-              !plan ||
-              job.input.capability !== "cyber.action" ||
-              args.planId !== input.planId ||
-              plan?.version !== args.version ||
-              plan?.stepIndex !== args.stepIndex
-            )
-              throw new DomainError("Stale cyber step", "CONFLICT", 409);
-            authorize(run, plan);
-            return executeStep(
-              run,
-              String(input.planId),
-              { id: "worker", role: "worker", channel: "worker" },
-              input.proof as import("@yamnaya/core").EffectProof | undefined,
-            );
-          }
-          throw new DomainError(
-            "Unknown cyber operation",
-            "INVALID_INPUT",
-            400,
-          );
         }
         throw new DomainError("Unknown camp operation", "NOT_FOUND", 404);
       },

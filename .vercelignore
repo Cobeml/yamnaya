@@ -10,6 +10,5 @@ runtime
 workspace
 playwright-report
 test-results
-con_ed_infra_interview.md
 *.log
 *.tsbuildinfo

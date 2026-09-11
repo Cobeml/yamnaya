@@ -14,34 +14,6 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm evaluate
-      - uses: actions/upload-artifact@v4
-        with:
-          name: deterministic-evaluations
-          path: runtime/evaluations/latest.json
-  browser:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { version: 10.32.1 }
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
-      # `pnpm setup` is a pnpm built-in; explicitly run our package script.
-      # It generates disposable local credentials. No repository secrets required.
-      - run: pnpm run setup --slack-fixture
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: docker compose -f docker-compose.cyber.yml --profile local up -d --build --wait
-      - run: pnpm test:e2e
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: browser-evidence
-          path: |
-            playwright-report
-            test-results
-            runtime/screenshots
   camps:
     runs-on: ubuntu-latest
     steps:
@@ -51,11 +23,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm camps:setup
+      - run: pnpm run setup
       - run: pnpm exec playwright install --with-deps chromium
       - run: docker compose --env-file .env.camps up -d --build
       - run: docker compose --env-file .env.camps exec -T -e CAMP_HERMES_SUPERVISOR_URL=http://127.0.0.1:8765 hermes python /opt/yamnaya/test-hermes.py
-      - run: pnpm camps:test:e2e
+      - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:

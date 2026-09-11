@@ -43,27 +43,27 @@ function setup() {
   return camp;
 }
 describe("camp authority and execution", () => {
-  it("isolates camps, rejects self-grants and projects a synthetic adversary view", () => {
+  it("isolates camps, rejects self-grants and limits agents to their own grants", () => {
     const camp = setup();
     expect(() =>
       requireCampActor(camp, { ...agent, campId: "camp-other" }),
     ).toThrow();
     expect(() => addGrant(camp, {}, agent, now)).toThrow();
-    const cyber = createCamp(
-      "camp-cyber",
-      { name: "Cyber camp", domain: "cyber" },
-      "owner",
+    addGrant(
+      camp,
+      {
+        agentId: "noor",
+        capability: "research.fetch",
+        scope: "example.org",
+        expiresAt: later,
+      },
+      operator,
       now,
     );
-    const view = campView(cyber, {
-      kind: "agent",
-      id: "attacker",
-      agentId: "attacker",
-      campId: cyber.id,
-    });
-    expect(view).not.toHaveProperty("evidence");
-    expect(view).not.toHaveProperty("grants");
-    expect(view).not.toHaveProperty("missions");
+    const view = campView(camp, agent);
+    expect(view).not.toHaveProperty("idempotency");
+    expect(view.grants).toEqual([]);
+    expect(campView(camp, operator).grants).toHaveLength(1);
   });
   it("checks revocation and expiry again after a tool is queued", () => {
     const camp = setup();

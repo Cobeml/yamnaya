@@ -23,7 +23,6 @@ flowchart LR
 ## Ownership and boundaries
 
 - `packages/core/src/camps.ts`: schemas and deterministic transitions, camp authority, expiring grants, publication revisions, job eligibility, daily budgets, training candidates, lineage and legal games. No effects or model calls.
-- `packages/core/src/domains/cyber`: the retained utility model, ontology, policy, ingestion, rehearsal and independent verification. Compatibility reexports preserve existing callers.
 - `apps/web`: signed operator sessions and camp/job-scoped agent identities; bounded JSON requests; PostgreSQL transactions, revisions, idempotency and audit projections; 3D view and review controls. Browser/model approval claims have no authority.
 - `services/worker/camps.ts`: scheduler, connector effects, runtime supervision and independently checked results. Web requests queue work rather than waiting for models, renders or deployments.
 - `services/hermes`: pinned upstream runtime, a private supervisor, one child process per invocation, persistent per-camp/per-agent home and versioned conversation checkpoints. Only explicit cube tools and private memory are exposed. No built-in shell, filesystem editing, unbounded delegation or direct provider credentials.
@@ -46,11 +45,5 @@ A publication binds a repository, default branch, project directory, source file
 The operator reviews the preview and approves that exact digest. Source edits and rollbacks create a new revision; rendering different bytes invalidates old approval. GitHub receives a source PR with the managed publication workflow. Before publication the worker verifies source bytes at the recorded PR head, merges that head under GitHub's protections, writes the reviewed output to an artifact branch, verifies its Git tree/blob hashes and dispatches Pages. Publication code is never re-executed in the credential-bearing deployment worker. Completion requires the expected public release marker; delayed or uncertain delivery remains indeterminate.
 
 Reports should be concise, retain citations, distinguish evidence from inference, and use graphics or client-side interactivity only when useful. Quarto is the document and website system; GitHub provides version control and review. MCP remains a future connector boundary using these same grants, jobs and receipt verifiers.
-
-## Preserved cyber behavior
-
-New camp agents use Hermes, including the synthetic defender and adversary. Original utility authorizations, plan versions, rehearsal and independently checked action receipts remain in the cyber domain. Synthetic adversaries receive only the restricted observation/action view. Their contexts omit physical ground truth and the private interview. Cyber code recovery retains isolated mapping tests and the incident PR adapter.
-
-The old dashboard/API/deployment is available separately for rollback and regression, with its detailed contract in [cyber architecture](cyber-architecture.md). Its running OpenClaw deployment was not migrated in place. New default Compose services are named `yamnaya-camps` and use independent ports and volumes.
 
 See [camp operations](camps.md) for configuration and known limits, and [tasks](tasks.md) for the actual validation record.
