@@ -15,7 +15,7 @@ Yamnaya provides general-purpose and research camps with one mission ontology: o
 
 Verified locally on 2026-09-11:
 
-- All 10 camp policy, persistence and publication regressions pass; TypeScript and ESLint pass.
+- All 12 camp policy, persistence, publication, image-import and preview-origin regressions pass; TypeScript and ESLint pass.
 - Every production container builds, the PostgreSQL migration succeeds, and all six persistent camp services run successfully.
 - The browser workflow passes against the rebuilt stack: a general-purpose camp receives a mission, edits a Quarto site, executes Python during rendering, opens the preview, approves the build, invalidates approval on edit, scopes an agent grant and plays a legal game.
 - The actual pinned Hermes runtime passes observation, checkpoint and restricted-tool checks against a fake streaming model. Its supervisor passes process launch, durable completion and idempotent resubmission checks. No paid model call is claimed.
@@ -37,4 +37,10 @@ Run the application at **http://localhost:3110**; signed previews use **http://1
 
 ## Hosted deployment and image tools
 
-Implemented database-backed artifact previews on a separate hostname and an operator-assisted Google website image workflow. All 12 policy, persistence, publication, image-import and preview-origin regressions pass. Vercel deployment and the hosted browser/runtime checks are in progress.
+Deployed the camp application to https://yamnaya.vercel.app with database-backed report artifacts on https://yamnaya-camps-preview.vercel.app. Both hostnames are production project domains. The production schema migration and Vercel build succeeded; all executor containers were rebuilt and started with the hosted configuration.
+
+The hosted browser workflow passed on 2026-09-11: create and start a simulation camp, edit Quarto, prepare an image brief, import a synthetic image fixture, execute Python during rendering, view the image in the isolated preview, approve the build, invalidate approval on edit, grant scoped tools and play a legal game. Desktop/mobile screenshots and the report preview are in `runtime/screenshots`. The test caught a stale refresh overwriting a newly selected camp; refresh results now apply only to the current selection and request generation. Test camps are archived after each run.
+
+The pinned Hermes runtime and supervisor checks passed using the fake streaming model, including durable checkpoints, restricted tools and idempotent completion. All 12 unit regressions, TypeScript and ESLint pass. The main app responds successfully and unauthenticated camp API access returns 401.
+
+Google image generation is an operator handoff through the signed-in Gemini/AI Studio website. No Google API, billing connection, credit purchase or paid fallback is configured. The import check used a synthetic local fixture; actual Google generation and the account's remaining allowance were not tested. Live model, Slack and GitHub credentials remain unconfigured. The executor host must stay running for queued work.
