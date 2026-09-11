@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,7 +37,7 @@ it("branches repair from the incident commit and reconciles a retry without a du
       if (url.hostname === "lab.invalid")
         return reply({
           result: { passed: true, tests: 32 },
-          sourceDigest: "test-receipt",
+          sourceDigest: createHash("sha256").update(body.source).digest("hex"),
         });
       // GitHub's repository endpoint is strict about the trailing slash.
       // A 200 here used to mask the live connector's 404 before any branch creation.

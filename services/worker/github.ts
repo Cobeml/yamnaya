@@ -4,13 +4,31 @@ import path from "node:path";
 import type { Run, Plan } from "../../packages/core/src/contracts";
 import type { EffectProof } from "../../packages/core/src/policy";
 
-async function github(route: string, init: RequestInit = {}) {
+interface PatchConfiguration {
+  token?: string;
+  repository?: string;
+  codeLab?: string;
+  artifactDirectory?: string;
+}
+function defaultConfiguration(): PatchConfiguration {
+  return {
+    token: process.env.GITHUB_TOKEN,
+    repository: process.env.GITHUB_REPOSITORY,
+    codeLab: process.env.CODE_LAB_URL,
+    artifactDirectory: process.env.YAMNAYA_ARTIFACT_DIR,
+  };
+}
+async function githubWithConfig(
+  config: PatchConfiguration,
+  route: string,
+  init: RequestInit = {},
+) {
   const response = await fetch(
-    `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}${route ? `/${route}` : ""}`,
+    `https://api.github.com/repos/${config.repository}${route ? `/${route}` : ""}`,
     {
       ...init,
       headers: {
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        Authorization: `Bearer ${config.token}`,
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "Content-Type": "application/json",
@@ -29,8 +47,11 @@ export async function preparePatch(
   run: Run,
   plan: Plan,
   source: string,
+  config: PatchConfiguration = defaultConfiguration(),
 ): Promise<EffectProof> {
-  const codeLab = process.env.CODE_LAB_URL ?? "http://code-lab:4100";
+  const github = (route: string, init: RequestInit = {}) =>
+    githubWithConfig(config, route, init);
+  const codeLab = config.codeLab ?? "http://code-lab:4100";
   const test = await fetch(`${codeLab}/test`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -42,10 +63,12 @@ export async function preparePatch(
     result?: { passed: boolean; tests: number };
     sourceDigest: string;
   };
+  if (result.sourceDigest !== createHash("sha256").update(source).digest("hex"))
+    throw new Error("Mapping source receipt mismatch");
   if (!test.ok || !result.result?.passed)
     throw new Error(result.error ?? "Mapping regression tests failed");
   const folder = path.join(
-    process.env.YAMNAYA_ARTIFACT_DIR ?? "runtime/artifacts",
+    config.artifactDirectory ?? "runtime/artifacts",
     run.id,
     `${plan.id}-v${plan.version}`,
   );
@@ -60,14 +83,14 @@ export async function preparePatch(
     testsPassed: true,
     message: `${result.result.tests} isolated mapping regression cases passed`,
   };
-  if (!process.env.GITHUB_TOKEN || !process.env.GITHUB_REPOSITORY) {
+  if (!config.token || !config.repository) {
     if (run.mode === "live")
       throw new Error(
         "Live code recovery requires GITHUB_TOKEN and GITHUB_REPOSITORY. Tested local patch was retained.",
       );
     return proof;
   }
-  if (!/^[\w.-]+\/[\w.-]+$/.test(process.env.GITHUB_REPOSITORY))
+  if (!/^[\w.-]+\/[\w.-]+$/.test(config.repository))
     throw new Error("Invalid GitHub repository");
   const base = `demo/incidents/${run.id.toLowerCase()}`,
     branch = `${base}-${plan.id.toLowerCase()}-v${plan.version}`;
@@ -132,10 +155,10 @@ export async function preparePatch(
     `Restore effective-dated meter associations for ${run.id}`,
   );
   const existingResponse = await fetch(
-    `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/pulls?head=${encodeURIComponent(process.env.GITHUB_REPOSITORY.split("/")[0] + ":" + branch)}&base=${encodeURIComponent(base)}&state=all`,
+    `https://api.github.com/repos/${config.repository}/pulls?head=${encodeURIComponent(config.repository.split("/")[0] + ":" + branch)}&base=${encodeURIComponent(base)}&state=all`,
     {
       headers: {
-        Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+        Authorization: `Bearer ${config.token}`,
         Accept: "application/vnd.github+json",
       },
       signal: AbortSignal.timeout(15000),

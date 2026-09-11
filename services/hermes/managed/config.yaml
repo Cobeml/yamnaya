@@ -1,0 +1,20 @@
+agent:
+  max_turns: 12
+  bot_mode_protocol: false
+  environment_probe: false
+auxiliary:
+  background_review:
+    enabled: false
+skills:
+  write_approval: true
+memory:
+  memory_char_limit: 2200
+  user_char_limit: 1375
+plugins:
+  stream_reasoning_deltas: false
+security:
+  redact_secrets: true
+
+tools:
+  tool_search:
+    enabled: "off"
