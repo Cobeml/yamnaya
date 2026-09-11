@@ -92,25 +92,55 @@ export function startCampGateway() {
         }
         if (input.stream && url.pathname.endsWith("completions"))
           input.stream_options = { include_usage: true };
-        const reservation = await campApi(
+        let reservation = await campApi(
           `${token.campId}/worker/model-reserve`,
           {
             jobId: token.jobId,
             agentId: token.agentId,
+            inspect: true,
           },
         );
-        const google=reservation.cultural === true;
-        if(google) {
-          input.model="gemini-3.8-flash";
-          input.reasoning_effort=reservation.profile?.reasoning ?? "low";
+        const google = reservation.cultural === true;
+        if (google) {
+          input.model = "gemini-3.8-flash";
+          input.max_completion_tokens = 8192;
+          input.reasoning_effort = reservation.profile?.reasoning ?? "low";
           delete input.store;
-          const quota=await reserveGoogleQuota(Buffer.byteLength(raw,"utf8"),reservation.training===true);
-          if(!quota.allowed){res.writeHead(429,{"Content-Type":"application/json","X-Camp-Retry-At":new Date(quota.retryAt).toISOString(),"Retry-After":String(Math.ceil((quota.retryAt-Date.now())/1000))});res.end(JSON.stringify({error:{message:quota.reason,type:"camp_quota"}}));return;}
-          quotaId=quota.id;
-        } else input.model=process.env.CAMP_MODEL;
-        const key=google?process.env.CAMP_GEMINI_API_KEY:process.env.CAMP_MODEL_API_KEY;
-        if(!key)throw new Error("Model provider key is not configured");
-        const base=google?"https://generativelanguage.googleapis.com/v1beta/openai":process.env.CAMP_MODEL_BASE_URL?.replace(/\/$/,"");
+          const quota = await reserveGoogleQuota(
+            Buffer.byteLength(raw, "utf8"),
+            reservation.training === true,
+          );
+          if (!quota.allowed) {
+            res.writeHead(429, {
+              "Content-Type": "application/json",
+              "X-Camp-Retry-At": new Date(quota.retryAt).toISOString(),
+              "Retry-After": String(
+                Math.ceil((quota.retryAt - Date.now()) / 1000),
+              ),
+            });
+            res.end(
+              JSON.stringify({
+                error: { message: quota.reason, type: "camp_quota" },
+              }),
+            );
+            return;
+          }
+          quotaId = quota.id;
+        } else input.model = process.env.CAMP_MODEL;
+        const key = google
+          ? process.env.CAMP_GEMINI_API_KEY
+          : process.env.CAMP_MODEL_API_KEY;
+        if (!key) throw new Error("Model provider key is not configured");
+        const base = google
+          ? "https://generativelanguage.googleapis.com/v1beta/openai"
+          : process.env.CAMP_MODEL_BASE_URL?.replace(/\/$/, "");
+        reservation = {
+          ...reservation,
+          ...(await campApi(`${token.campId}/worker/model-reserve`, {
+            jobId: token.jobId,
+            agentId: token.agentId,
+          })),
+        };
         const upstream = await fetch(
           `${base}/${url.pathname.endsWith("responses") ? "responses" : "chat/completions"}`,
           {
@@ -123,12 +153,34 @@ export function startCampGateway() {
             signal: AbortSignal.timeout(90000),
           },
         );
-        if(google && upstream.status===429){
-          const seconds=Number(upstream.headers.get("retry-after"));const retryAt=Date.now()+(Number.isFinite(seconds)&&seconds>0?Math.min(seconds,86400):3600)*1000;
-          if(quotaId)await releaseGoogleQuota(quotaId,retryAt);quotaId=undefined;
-          res.writeHead(429,{"Content-Type":"application/json","X-Camp-Retry-At":new Date(retryAt).toISOString(),"Retry-After":String(Math.ceil((retryAt-Date.now())/1000))});res.end(JSON.stringify({error:{message:"Gemini free quota exhausted; task saved for later",type:"camp_quota"}}));return;
+        if (google && upstream.status === 429) {
+          const seconds = Number(upstream.headers.get("retry-after"));
+          const retryAt =
+            Date.now() +
+            (Number.isFinite(seconds) && seconds > 0
+              ? Math.min(seconds, 86400)
+              : 3600) *
+              1000;
+          if (quotaId) await releaseGoogleQuota(quotaId, retryAt);
+          quotaId = undefined;
+          res.writeHead(429, {
+            "Content-Type": "application/json",
+            "X-Camp-Retry-At": new Date(retryAt).toISOString(),
+            "Retry-After": String(Math.ceil((retryAt - Date.now()) / 1000)),
+          });
+          res.end(
+            JSON.stringify({
+              error: {
+                message: "Gemini quota exhausted; task saved for later",
+                type: "camp_quota",
+              },
+            }),
+          );
+          return;
         }
         if (!upstream.ok) {
+          if (quotaId) await releaseGoogleQuota(quotaId);
+          quotaId = undefined;
           res.writeHead(upstream.status, {
             "Content-Type": "application/json",
           });
@@ -156,7 +208,7 @@ export function startCampGateway() {
             },
           });
           meter.on("end", () => {
-            if(quotaId)void releaseGoogleQuota(quotaId).catch(()=>{});
+            if (quotaId) void releaseGoogleQuota(quotaId).catch(() => {});
             let usage: Record<string, unknown> | undefined;
             for (const line of tail.split("\n")) {
               try {
@@ -185,11 +237,17 @@ export function startCampGateway() {
             }).catch(() => {});
           });
           const stream = Readable.fromWeb(upstream.body as never);
-          stream.on("error", () => res.destroy());
+          stream.on("error", () => {
+            if (quotaId) void releaseGoogleQuota(quotaId).catch(() => {});
+            res.destroy();
+          });
           stream.pipe(meter).pipe(res);
-        } else res.end();
+        } else {
+          if (quotaId) await releaseGoogleQuota(quotaId);
+          res.end();
+        }
       } catch (error) {
-        if(quotaId)await releaseGoogleQuota(quotaId).catch(()=>{});
+        if (quotaId) await releaseGoogleQuota(quotaId).catch(() => {});
         if (!res.headersSent)
           res.writeHead(503, { "Content-Type": "application/json" });
         res.end(

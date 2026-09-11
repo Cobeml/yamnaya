@@ -12,6 +12,7 @@ import urllib.request
 
 calls = []
 requested_tool = "camp_observe"
+pause_after_tool = False
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
@@ -29,6 +30,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         assert "camp_observe" in names, names
         assert all(name.startswith("camp_") or name == "memory" for name in names), names
         used = any(m.get("role") == "tool" for m in data.get("messages", []))
+        if used and pause_after_tool:
+            self.send_response(429); self.send_header("Content-Type", "application/json"); self.send_header("X-Camp-Retry-At", "2099-01-01T00:00:00.000Z"); self.end_headers()
+            self.wfile.write(json.dumps({"error":{"message":"Quota fixture", "type":"camp_quota"}}).encode()); return
         message = {"role": "assistant", "content": "Contract test complete."} if used else {"role": "assistant", "content": None, "tool_calls": [{"id": "call_observe", "type": "function", "function": {"name": requested_tool, "arguments": "{}"}}]}
         response = {"id": "test", "object": "chat.completion", "model": "fixture-model", "created": 0, "choices": [{"index": 0, "message": message, "finish_reason": "stop" if used else "tool_calls"}], "usage": {"prompt_tokens": 40, "completion_tokens": 10, "total_tokens": 50}}
         if data.get("stream"):
@@ -73,6 +77,20 @@ with tempfile.TemporaryDirectory(prefix="hermes-contract-") as home:
     assert blocked.returncode == 0, blocked.stdout[-1000:]
     checkpoint = json.loads((Path(home) / "history-ada-v2.json").read_text())
     assert any(m.get("role") == "tool" and any(reason in str(m.get("content")) for reason in ["outside this camp", "does not exist"]) for m in checkpoint), checkpoint
+    requested_tool = "camp_observe"
+    pause_after_tool = True
+    payload["configurationId"] = "ada-v3"
+    payload["invocationId"] = "quota-first"
+    paused = subprocess.run([str(source / ".venv/bin/python"), str(runner)], input=json.dumps(payload), text=True, capture_output=True, env=env, cwd=source, timeout=60)
+    assert paused.returncode == 0 and '"kind": "deferred"' in paused.stdout, (paused.stdout[-3000:], paused.stderr[-1000:])
+    saved = json.loads((Path(home) / "history-ada-v3.json").read_text())
+    assert any(m.get("role") == "tool" for m in saved), saved
+    pause_after_tool = False
+    payload["invocationId"] = "quota-resumed"
+    resumed = subprocess.run([str(source / ".venv/bin/python"), str(runner)], input=json.dumps(payload), text=True, capture_output=True, env=env, cwd=source, timeout=60)
+    assert resumed.returncode == 0 and '"kind": "completed"' in resumed.stdout, resumed.stdout[-3000:]
+    assert '"kind": "tool.start"' not in resumed.stdout, "Completed tool was repeated after quota resume"
+    print("PASS: quota suspension retained tool results; resume completed without repeating the tool.")
     print("PASS: real Hermes observation, completion, persistent checkpoint and denial of a fabricated delegation call; fake model only.")
 if os.environ.get("CAMP_HERMES_SUPERVISOR_URL"):
     requested_tool = "camp_observe"

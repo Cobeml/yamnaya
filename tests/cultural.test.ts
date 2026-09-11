@@ -1,6 +1,10 @@
 import { expect, it } from "vitest";
 import {
   createCamp,
+  setCampStatus,
+  instructCamp,
+  resumeWorkflow,
+  completeCampJob,
   addSourceDossier,
   addConnection,
   startWorkflow,
@@ -223,4 +227,44 @@ it("keeps held-out answers private and requires comparative evidence for promoti
       now,
     ),
   ).toThrow("distinct");
+});
+
+it("pausing releases workflow dependencies and broadcast messages do not wake four roles", () => {
+  const c = fixture();
+  c.status = "running";
+  const p = createPublication(
+    c,
+    { title: "Lifecycle test", repository: "example/research" },
+    operator,
+    now,
+  );
+  const tasks = startWorkflow(c, p.id, operator, now);
+  instructCamp(c, { text: "New editorial direction" }, operator, now);
+  expect(c.jobs).toHaveLength(0);
+  advanceWorkflow(c, now);
+  const firstJob = c.jobs[0];
+  setCampStatus(c, "paused", operator, now);
+  expect(firstJob.status).toBe("cancelled");
+  expect(tasks[0].status).toBe("waiting_input");
+  setCampStatus(c, "running", operator, now);
+  advanceWorkflow(c, now);
+  expect(c.jobs).toHaveLength(1);
+  resumeWorkflow(c, tasks[0].id, operator, now);
+  advanceWorkflow(c, now);
+  expect(c.jobs).toHaveLength(2);
+  const j = c.jobs[1];
+  j.status = "leased";
+  j.leaseOwner = "test-worker";
+  j.leaseUntil = "2026-09-11T12:05:00.000Z";
+  completeCampJob(
+    c,
+    j.id,
+    "test-worker",
+    { outcome: "verified", detail: "Completed without handoff" },
+    { summary: "Need more input" },
+    now,
+  );
+  expect(tasks[0].status).toBe("waiting_input");
+  advanceWorkflow(c, now);
+  expect(tasks[1].status).toBe("waiting_input");
 });

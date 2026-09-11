@@ -26,7 +26,7 @@ export type CampActor = {
 export type Activity =
   "idle" | "thinking" | "cube" | "talking" | "playing" | "training" | "blocked";
 export interface AgentConfiguration {
-  modelProfile?: {model:string;reasoning:"high"|"medium"|"low"};
+  modelProfile?: { model: string; reasoning: "high" | "medium" | "low" };
   id: string;
   version: number;
   persona: string;
@@ -202,7 +202,7 @@ export interface Camp {
 const identity = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/);
 export const campInputSchema = z.object({
   name: z.string().trim().min(2).max(100),
-  focus: z.enum(["america","china"]).optional(),
+  focus: z.enum(["america", "china"]).optional(),
   domain: z.enum(["research", "general"]).default("research"),
   mode: z.enum(["live", "simulation"]).default("live"),
 });
@@ -380,7 +380,7 @@ export function createCamp(
     },
     game: { board: Array(9).fill(null), next: "X", winner: null },
   };
-  if (input.focus) initializeCulturalCamp(camp,input.focus,now);
+  if (input.focus) initializeCulturalCamp(camp, input.focus, now);
   campEvent(
     camp,
     "camp.created",
@@ -478,6 +478,14 @@ export function setCampStatus(
   if (status !== "running") {
     for (const job of camp.jobs)
       if (job.status === "queued") job.status = "cancelled";
+    for (const task of camp.cultural?.tasks ?? []) {
+      if (["working", "waiting_quota"].includes(task.status)) {
+        task.status = "waiting_input";
+        task.dependsOn = [];
+        task.output =
+          "Camp paused. Resume this task after supplying any new instructions.";
+      }
+    }
     for (const agent of camp.agents) agent.activity = "idle";
   }
   campEvent(camp, `camp.${status}`, `Camp ${status}.`, actor.id, now);
@@ -553,11 +561,14 @@ export function instructCamp(
   // Agent-to-agent replies wake only explicitly addressed peers. Broadcasts do not recursively wake the whole camp.
   const recipients =
     input.recipientId === "camp"
-      ? actor.kind === "operator"
+      ? actor.kind === "operator" && !camp.cultural
         ? camp.agents
         : []
       : camp.agents.filter(
-          (a) => a.id === input.recipientId && a.id !== actor.agentId,
+          (a) =>
+            a.id === input.recipientId &&
+            a.id !== actor.agentId &&
+            (!camp.cultural || actor.kind === "operator"),
         );
   for (const agent of recipients)
     queueCampTurn(
@@ -938,7 +949,11 @@ export function claimCampJob(
     camp.budgets.socialTurns = 0;
   }
   for (const job of camp.jobs.filter((j) => j.status === "queued")) {
-    if (job.input.notBefore && Date.parse(String(job.input.notBefore)) > Date.parse(now)) continue;
+    if (
+      job.input.notBefore &&
+      Date.parse(String(job.input.notBefore)) > Date.parse(now)
+    )
+      continue;
     const reasoning = job.kind !== "tool";
     if (
       !reasoning &&
@@ -973,12 +988,13 @@ export function claimCampJob(
       job.receipt = { outcome: "failed", detail: (e as Error).message };
       continue;
     }
-    if (reasoning) {
+    if (reasoning && !job.input.waitReason) {
       if (job.kind === "social") camp.budgets.socialTurns++;
       else camp.budgets.missionTurns++;
     }
     job.status = "leased";
-    const workflowTask=camp.cultural?.tasks.find(t=>t.jobId===job.id);if(workflowTask)workflowTask.status="working";
+    const workflowTask = camp.cultural?.tasks.find((t) => t.jobId === job.id);
+    if (workflowTask) workflowTask.status = "working";
     job.leaseOwner = owner;
     job.leaseUntil = new Date(Date.parse(now) + 360000).toISOString();
     job.attempts++;
@@ -1043,6 +1059,19 @@ export function completeCampJob(
         text: agent.lastSummary,
       });
     }
+  }
+  const task = camp.cultural?.tasks.find((t) => t.jobId === job.id);
+  if (
+    task &&
+    (task.status === "working" ||
+      (task.status === "done" && job.status !== "done"))
+  ) {
+    task.status = "waiting_input";
+    task.dependsOn = [];
+    task.output =
+      job.status === "done"
+        ? "Agent finished without a verified handoff. Review its output before resuming."
+        : receipt.detail;
   }
   campEvent(camp, `job.${job.status}`, receipt.detail, agent.id, now, [job.id]);
 }
@@ -1132,9 +1161,20 @@ export function promoteSkillCandidate(
     "CONFLICT",
   );
   const a = camp.agents.find((a) => a.id === c.agentId)!;
-  if(camp.cultural) {
-    const evaluation=camp.cultural.evaluations.filter(e=>e.candidateId===c.id&&e.configurationId===a.configurationId).at(-1);
-    requireCondition(evaluation && evaluation.cases.every(x=>x.candidate>=x.baseline) && evaluation.cases.some(x=>x.candidate>x.baseline), "A reviewed held-out comparison must show improvement without regression", "CONFLICT");
+  if (camp.cultural) {
+    const evaluation = camp.cultural.evaluations
+      .filter(
+        (e) =>
+          e.candidateId === c.id && e.configurationId === a.configurationId,
+      )
+      .at(-1);
+    requireCondition(
+      evaluation &&
+        evaluation.cases.every((x) => x.candidate >= x.baseline) &&
+        evaluation.cases.some((x) => x.candidate > x.baseline),
+      "A reviewed held-out comparison must show improvement without regression",
+      "CONFLICT",
+    );
   }
   requireCondition(
     !camp.jobs.some((j) => j.agentId === a.id && j.status === "leased"),

@@ -1,3 +1,5 @@
+import { campUpdates } from "./camp-updates";
+import { campDatabase } from "../../apps/web/lib/camp-store";
 import { startCampOrigin } from "./camp-origin";
 import { sandboxRequest } from "./sandbox-client";
 import { config } from "dotenv";
@@ -48,7 +50,29 @@ async function agentTurn(work: CampWork) {
       summary:
         "Simulation: instruction received. No model or external action ran. Use Live mode for Hermes reasoning.",
     };
-  if (!(camp.cultural ? process.env.CAMP_GEMINI_API_KEY : process.env.CAMP_MODEL_API_KEY))
+  if (
+    camp.cultural &&
+    (!process.env.CAMP_GEMINI_API_KEY ||
+      (process.env.CAMP_GEMINI_FREE_TIER !== "true" &&
+        !(
+          Number(process.env.CAMP_GEMINI_MONTHLY_USD) > 0 &&
+          Number(process.env.CAMP_GEMINI_MONTHLY_USD) <= 10
+        )) ||
+      !["CAMP_GEMINI_RPM", "CAMP_GEMINI_TPM", "CAMP_GEMINI_RPD"].every(
+        (k) => Number(process.env[k]) > 0,
+      ))
+  )
+    return {
+      deferred: true,
+      retryAt: new Date(Date.now() + 3600000).toISOString(),
+      reason:
+        "Gemini key, project limits and authorized budget are required; no model call was made",
+    };
+  if (
+    !(camp.cultural
+      ? process.env.CAMP_GEMINI_API_KEY
+      : process.env.CAMP_MODEL_API_KEY)
+  )
     throw new Error(
       "CAMP_MODEL_API_KEY is not configured; no model call was made",
     );
@@ -66,7 +90,9 @@ async function agentTurn(work: CampWork) {
     model: camp.cultural ? "gemini-3.8-flash" : process.env.CAMP_MODEL,
     apiMode: process.env.CAMP_MODEL_API_MODE ?? "chat_completions",
     modelProxyUrl: process.env.CAMP_MODEL_PROXY_URL,
-    text: job.input.waitReason ? `Continue the saved task after a quota pause. Inspect existing results and do not repeat completed actions. Original task: ${job.input.text}` : String(job.input.text),
+    text: job.input.waitReason
+      ? `Continue the saved task after a quota pause. Inspect existing results and do not repeat completed actions. Original task: ${job.input.text}`
+      : String(job.input.text),
     systemPrompt: `You are ${agent.name}, ${agent.role}, in ${camp.name}. ${campDoctrine}\n${cfg.persona}\nUse camp_observe first. Your granted capabilities are provided by the cube; tools cannot grant additional authority. Preserve citations and explicitly identify inference. Author Quarto sources in provisioned publications. Render and propose a GitHub PR; only the operator can review publication.\nActive approved skills:\n${cfg.skills.map((s) => s.name + "\n" + s.content).join("\n\n")}`,
     timeoutSeconds: 300,
     maxIterations: 12,
@@ -90,7 +116,8 @@ async function agentTurn(work: CampWork) {
         }
       if (state.status === "completed")
         return { summary: state.summary, invocationId, runtime: "hermes" };
-      if(state.status === "deferred") return {deferred:true,retryAt:state.retryAt,reason:state.reason};
+      if (state.status === "deferred")
+        return { deferred: true, retryAt: state.retryAt, reason: state.reason };
       if (state.status !== "running")
         throw new Error(
           `Hermes invocation ${state.status}; inspect runtime journal ${invocationId}`,
@@ -294,7 +321,16 @@ async function handle(work: CampWork) {
   try {
     const result =
       work.job.kind === "tool" ? await tool(work) : await agentTurn(work);
-    if(result && typeof result==="object" && "deferred" in result){const wait=result as unknown as {retryAt:string;reason:string};await campApi(`${work.camp.id}/worker/defer`,{jobId:work.job.id,owner:workerId,retryAt:wait.retryAt,reason:wait.reason});return;}
+    if (result && typeof result === "object" && "deferred" in result) {
+      const wait = result as unknown as { retryAt: string; reason: string };
+      await campApi(`${work.camp.id}/worker/defer`, {
+        jobId: work.job.id,
+        owner: workerId,
+        retryAt: wait.retryAt,
+        reason: wait.reason,
+      });
+      return;
+    }
     await campApi(
       `${work.camp.id}/worker/complete`,
       {
@@ -381,6 +417,26 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
   });
 console.log("Camp worker ready: Hermes, Quarto, GitHub and optional Slack");
 let nextSchedule = 0;
+let wake: (() => void) | undefined;
+let unlisten: (() => Promise<void>) | undefined;
+if (process.env.CAMP_DATABASE_URL && process.env.CAMP_STORAGE !== "file") {
+  const listener = await campDatabase().listen("camp_work", () => {
+    wake?.();
+  });
+  unlisten = listener.unlisten;
+}
+const waitForWork = () =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      wake = undefined;
+      resolve();
+    }, 10000);
+    wake = () => {
+      clearTimeout(timer);
+      wake = undefined;
+      resolve();
+    };
+  });
 while (!stopping) {
   try {
     if (Date.now() > nextSchedule) {
@@ -388,7 +444,8 @@ while (!stopping) {
       for (const camp of camps as Camp[]) {
         await campApi(`${camp.id}/worker/schedule`, {});
       }
-      nextSchedule = Date.now() + 15000;
+      await campUpdates(camps as Camp[], slack);
+      nextSchedule = Date.now() + 30000;
     }
     if (active.size < 6) {
       const { work } = await campApi("worker/claim", { owner: workerId });
@@ -403,9 +460,10 @@ while (!stopping) {
       error instanceof Error ? error.message : "Camp worker unavailable",
     );
   }
-  await pause(1000);
+  await waitForWork();
 }
 await Promise.allSettled(active);
 await slack?.stop();
+await unlisten?.();
 gateway.close();
 origin?.close();

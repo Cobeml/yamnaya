@@ -1,5 +1,25 @@
-import { readBoard, postBoard, sharedLibrary } from "../../../../lib/camp-boards";
-import { addSourceDossier, addConnection, startWorkflow, advanceWorkflow, submitWorkflow, resumeWorkflow, addVenue, draftOutbound, approveOutbound, suppressDestination, recordInfluence, recordEvaluation, addEvaluationExample, culturalResources } from "@yamnaya/core";
+import { checkOutbound } from "@yamnaya/core";
+import {
+  readBoard,
+  postBoard,
+  sharedLibrary,
+} from "../../../../lib/camp-boards";
+import {
+  addSourceDossier,
+  addConnection,
+  startWorkflow,
+  advanceWorkflow,
+  submitWorkflow,
+  resumeWorkflow,
+  addVenue,
+  draftOutbound,
+  approveOutbound,
+  suppressDestination,
+  recordInfluence,
+  recordEvaluation,
+  addEvaluationExample,
+  culturalResources,
+} from "@yamnaya/core";
 import { relayCampRequest } from "../../../../lib/camp-relay";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -143,6 +163,32 @@ export async function GET(req: NextRequest, context: Context) {
           (process.env.CAMP_DATABASE_URL || process.env.CAMP_STORAGE === "file")
         ),
       });
+    if (parts[0] === "configuration") {
+      requireOperator(req);
+      return json({
+        storage: "local PostgreSQL",
+        migration: process.env.CAMP_NEON_MIGRATION ?? "not recorded",
+        gemini: {
+          key: !!process.env.CAMP_GEMINI_API_KEY,
+          confirmed: process.env.CAMP_GEMINI_FREE_TIER === "true",
+          monthlyUsd: Number(process.env.CAMP_GEMINI_MONTHLY_USD ?? 0),
+          rpm: Number(process.env.CAMP_GEMINI_RPM ?? 0),
+          tpm: Number(process.env.CAMP_GEMINI_TPM ?? 0),
+          rpd: Number(process.env.CAMP_GEMINI_RPD ?? 0),
+        },
+        gmailSender: process.env.CAMP_GMAIL_SENDER ?? null,
+        gmail: !!(
+          process.env.CAMP_GMAIL_CLIENT_ID &&
+          process.env.CAMP_GMAIL_CLIENT_SECRET &&
+          process.env.CAMP_GMAIL_REFRESH_TOKEN &&
+          process.env.CAMP_GMAIL_SENDER
+        ),
+        github: !!process.env.CAMP_GITHUB_TOKEN,
+        slack: !!(
+          process.env.CAMP_SLACK_BOT_TOKEN && process.env.CAMP_SLACK_APP_TOKEN
+        ),
+      });
+    }
     if (!parts.length) {
       const actor = requireOperator(req);
       return json({
@@ -165,10 +211,11 @@ export async function GET(req: NextRequest, context: Context) {
     }
     const camp = await readCamp(parts[0]);
     const actor = await activeActor(req, camp);
-    if(parts[1]==="revision") return json({revision:camp.revision});
-    if(parts[1]==="board") return json({threads:await readBoard(camp)});
-    if(parts[1]==="library") return json({publications:await sharedLibrary(camp)});
-    if(parts[1]==="cultural") return json(culturalResources(camp,actor));
+    if (parts[1] === "revision") return json({ revision: camp.revision });
+    if (parts[1] === "board") return json({ threads: await readBoard(camp) });
+    if (parts[1] === "library")
+      return json({ publications: await sharedLibrary(camp) });
+    if (parts[1] === "cultural") return json(culturalResources(camp, actor));
     if (parts[1] === "resources") {
       const query = req.nextUrl.searchParams;
       if (query.get("resource") === "evidence") {
@@ -271,7 +318,60 @@ export async function POST(req: NextRequest, context: Context) {
     const current = await readCamp(id);
     const actor = await activeActor(req, current);
     const operation = parts.slice(1).join("/");
-    if(operation === "board") return json(await postBoard(current,actor,input));
+    if (operation === "board")
+      return json(await postBoard(current, actor, input));
+    if (
+      operation === "worker/check" ||
+      (operation === "worker/model-reserve" && input.inspect === true)
+    ) {
+      requireWorker(req);
+      const job =
+        operation === "worker/check"
+          ? requireCampLease(
+              current,
+              String(input.jobId),
+              String(input.owner),
+              now,
+            )
+          : current.jobs.find(
+              (j) =>
+                j.id === input.jobId &&
+                j.agentId === input.agentId &&
+                j.kind !== "tool" &&
+                j.status === "leased" &&
+                Date.parse(j.leaseUntil ?? "") > Date.now(),
+            );
+      if (!job)
+        throw new DomainError(
+          "Active model invocation required",
+          "FORBIDDEN",
+          403,
+        );
+      checkCampJob(current, job, now);
+      if (operation === "worker/check") return json(job);
+      const agent = current.agents.find((a) => a.id === job.agentId)!;
+      return json({
+        cultural: !!current.cultural,
+        training: job.kind === "training",
+        profile: agent.configurations.find((c) => c.id === job.configurationId)
+          ?.modelProfile,
+      });
+    }
+    if (operation === "worker/outbound-claim") {
+      requireWorker(req);
+      if (
+        current.status !== "running" ||
+        current.mode !== "live" ||
+        !current.cultural?.outbox.some(
+          (o) =>
+            o.status === "approved" &&
+            ((o.channel === "gmail" && input.gmail === true) ||
+              (o.channel === "forum" && o.postedUrl)),
+        )
+      )
+        return json({ draft: null });
+    }
+
     if (operation === "clone") {
       requireCampOperator(current, actor);
       const cloned = await insertCamp(
@@ -326,18 +426,119 @@ export async function POST(req: NextRequest, context: Context) {
               403,
             );
         }
-        if(operation === "cultural/sources") return addSourceDossier(camp,input,actor,now);
-        if(operation === "cultural/connections") return addConnection(camp,input,actor,now);
-        if(operation === "cultural/workflow") return startWorkflow(camp,String(input.publicationId),actor,now);
-        if(operation === "cultural/submit") return submitWorkflow(camp,input,actor,now);
-        if(operation === "cultural/resume") {resumeWorkflow(camp,String(input.id),actor,now);return {ok:true};}
-        if(operation === "cultural/venues") return addVenue(camp,input,actor,now);
-        if(operation === "cultural/outbound") return draftOutbound(camp,input,actor,now);
-        if(operation === "cultural/approve") return approveOutbound(camp,String(input.id),actor,now);
-        if(operation === "cultural/suppress") {suppressDestination(camp,String(input.destination),actor,now);return {ok:true};}
-        if(operation === "cultural/influence") return recordInfluence(camp,input,actor,now);
-        if(operation === "cultural/examples") return addEvaluationExample(camp,input,actor,now);
-        if(operation === "cultural/evaluations") return recordEvaluation(camp,input,actor,now);
+        if (operation === "cultural/sources")
+          return addSourceDossier(camp, input, actor, now);
+        if (operation === "cultural/connections")
+          return addConnection(camp, input, actor, now);
+        if (operation === "cultural/workflow")
+          return startWorkflow(camp, String(input.publicationId), actor, now);
+        if (operation === "cultural/submit")
+          return submitWorkflow(camp, input, actor, now);
+        if (operation === "cultural/resume") {
+          resumeWorkflow(camp, String(input.id), actor, now);
+          return { ok: true };
+        }
+        if (operation === "cultural/venues")
+          return addVenue(camp, input, actor, now);
+        if (operation === "cultural/outbound") {
+          const draft = draftOutbound(camp, input, actor, now);
+          if (draft.channel === "gmail")
+            draft.sender = process.env.CAMP_GMAIL_SENDER;
+          return draft;
+        }
+        if (operation === "cultural/approve") {
+          const o = camp.cultural?.outbox.find((o) => o.id === input.id);
+          if (
+            o?.channel === "gmail" &&
+            (!o.sender ||
+              o.sender !==
+                z.string().email().parse(process.env.CAMP_GMAIL_SENDER))
+          )
+            throw new DomainError(
+              "Sender changed or missing; create a new draft to review the exact sender",
+            );
+          return approveOutbound(camp, String(input.id), actor, now);
+        }
+        if (operation === "cultural/forum-receipt") {
+          requireCampOperator(camp, actor);
+          const o = camp.cultural?.outbox.find((o) => o.id === input.id);
+          if (!o || o.channel !== "forum" || o.status !== "approved")
+            throw new DomainError("Approved forum draft required");
+          checkOutbound(camp, o);
+          const url = z.string().url().parse(input.url);
+          if (new URL(url).hostname !== new URL(o.destination).hostname)
+            throw new DomainError("Use the approved forum hostname");
+          o.postedUrl = url;
+          return o;
+        }
+        if (operation === "worker/outbound-claim") {
+          requireWorker(req);
+          if (camp.mode !== "live" || camp.status !== "running")
+            return { draft: null };
+          const o = camp.cultural?.outbox.find(
+            (o) =>
+              o.status === "approved" &&
+              ((o.channel === "gmail" && input.gmail === true) ||
+                (o.channel === "forum" && o.postedUrl)),
+          );
+          if (!o) return { draft: null };
+          checkOutbound(camp, o);
+          o.status = "sending";
+          o.attemptedAt = now;
+          campEvent(camp, "outbound.started", o.subject, "worker", now, [o.id]);
+          return { draft: o };
+        }
+        if (operation === "worker/outbound-result") {
+          requireWorker(req);
+          const o = camp.cultural?.outbox.find((o) => o.id === input.id);
+          if (!o || o.status !== "sending")
+            throw new DomainError("Delivery is not in progress");
+          o.status = input.ok === true ? "sent" : "indeterminate";
+          o.receipt = {
+            ref: z
+              .string()
+              .max(2000)
+              .parse(input.ref ?? ""),
+            detail: z.string().max(2000).parse(input.detail),
+            at: now,
+          };
+          campEvent(
+            camp,
+            "outbound." + o.status,
+            o.receipt.detail,
+            "worker",
+            now,
+            [o.id],
+          );
+          return o;
+        }
+        if (operation === "cultural/suppress") {
+          suppressDestination(camp, String(input.destination), actor, now);
+          return { ok: true };
+        }
+        if (operation === "cultural/influence")
+          return recordInfluence(camp, input, actor, now);
+        if (operation === "cultural/examples/review") {
+          requireCampOperator(camp, actor);
+          const e = camp.cultural?.examples.find((e) => e.id === input.id);
+          if (!e) throw new DomainError("Example not found");
+          e.prompt = z.string().min(3).max(6000).parse(input.prompt);
+          e.expected = z.string().min(3).max(6000).parse(input.expected);
+          e.reviewed = true;
+          campEvent(
+            camp,
+            "example.reviewed",
+            "Evaluation example reviewed",
+            actor.id,
+            now,
+            [e.id],
+          );
+          return e;
+        }
+        if (operation === "cultural/examples")
+          return addEvaluationExample(camp, input, actor, now);
+        if (operation === "cultural/evaluations")
+          return recordEvaluation(camp, input, actor, now);
         if (operation === "status") {
           setCampStatus(
             camp,
@@ -544,7 +745,21 @@ export async function POST(req: NextRequest, context: Context) {
         if (operation === "worker/schedule") {
           requireWorker(req);
           if (camp.status !== "running") return { ok: true };
-          advanceWorkflow(camp,now);
+          advanceWorkflow(camp, now);
+          for (const o of camp.cultural?.outbox ?? [])
+            if (
+              o.status === "sending" &&
+              Date.parse(o.attemptedAt ?? now) < Date.now() - 600000
+            ) {
+              o.status = "indeterminate";
+              o.receipt = {
+                ref: "",
+                detail:
+                  "Delivery interrupted; inspect the external account before sending again",
+                at: now,
+              };
+            }
+
           if (
             camp.schedule.socialEnabled &&
             Date.parse(camp.schedule.nextSocialAt) <= Date.now() &&
@@ -643,6 +858,15 @@ export async function POST(req: NextRequest, context: Context) {
               403,
             );
           checkCampJob(camp, j, now);
+          if (input.inspect === true) {
+            const a = camp.agents.find((a) => a.id === j.agentId)!;
+            return {
+              cultural: !!camp.cultural,
+              training: j.kind === "training",
+              profile: a.configurations.find((c) => c.id === j.configurationId)
+                ?.modelProfile,
+            };
+          }
           const count = Number(j.input.modelRequests ?? 0);
           if (count >= 24)
             throw new DomainError(
@@ -659,18 +883,18 @@ export async function POST(req: NextRequest, context: Context) {
             now,
             [j.id],
           );
-          const agent=camp.agents.find(a=>a.id===j.agentId)!;
-          return { remaining: 23 - count, requestNumber: count + 1, cultural:!!camp.cultural, training:j.kind==="training", profile:agent.configurations.find(c=>c.id===j.configurationId)?.modelProfile };
+          const agent = camp.agents.find((a) => a.id === j.agentId)!;
+          return {
+            remaining: 23 - count,
+            requestNumber: count + 1,
+            cultural: !!camp.cultural,
+            training: j.kind === "training",
+            profile: agent.configurations.find(
+              (c) => c.id === j.configurationId,
+            )?.modelProfile,
+          };
         }
-        if(operation === "worker/defer") {
-          requireWorker(req);const j=requireCampLease(camp,String(input.jobId),String(input.owner),now);
-          const at=z.string().datetime().parse(input.retryAt);if(Date.parse(at)<=Date.now())throw new DomainError("Future resume time required");
-          j.status="queued";j.input.notBefore=at;j.input.waitReason=z.string().max(500).parse(input.reason);delete j.leaseOwner;delete j.leaseUntil;
-          const task=camp.cultural?.tasks.find(t=>t.jobId===j.id);if(task){task.status="waiting_quota";task.notBefore=at;}
-          camp.agents.find(a=>a.id===j.agentId)!.activity="idle";
-          campEvent(camp,"workflow.quota",String(input.reason),j.agentId,now,[j.id]);return {ok:true};
-        }
-        if (operation === "worker/check") {
+        if (operation === "worker/defer") {
           requireWorker(req);
           const j = requireCampLease(
             camp,
@@ -678,8 +902,29 @@ export async function POST(req: NextRequest, context: Context) {
             String(input.owner),
             now,
           );
-          checkCampJob(camp, j, now);
-          return j;
+          const at = z.string().datetime().parse(input.retryAt);
+          if (Date.parse(at) <= Date.now())
+            throw new DomainError("Future resume time required");
+          j.status = "queued";
+          j.input.notBefore = at;
+          j.input.waitReason = z.string().max(500).parse(input.reason);
+          delete j.leaseOwner;
+          delete j.leaseUntil;
+          const task = camp.cultural?.tasks.find((t) => t.jobId === j.id);
+          if (task) {
+            task.status = "waiting_quota";
+            task.notBefore = at;
+          }
+          camp.agents.find((a) => a.id === j.agentId)!.activity = "idle";
+          campEvent(
+            camp,
+            "workflow.quota",
+            String(input.reason),
+            j.agentId,
+            now,
+            [j.id],
+          );
+          return { ok: true };
         }
         if (operation === "worker/activity") {
           requireWorker(req);

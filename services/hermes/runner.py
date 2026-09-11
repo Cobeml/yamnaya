@@ -112,9 +112,6 @@ def run(payload):
     # A quota pause exits the child and releases its lease; no model polling loop.
     from openai.resources.chat.completions import Completions
     original_create = Completions.create
-    class QuotaPause(BaseException):
-        def __init__(self, retry_at):
-            self.retry_at = retry_at
     def checkpoint_messages(messages):
         tmp = checkpoint.with_suffix(".tmp")
         tmp.write_text(json.dumps([m for m in messages if m.get("role") not in ["system", "developer"]]))
@@ -128,7 +125,10 @@ def run(payload):
             response = getattr(exc, "response", None)
             retry = response.headers.get("x-camp-retry-at") if response is not None else None
             if getattr(exc, "status_code", None) == 429 and retry:
-                raise QuotaPause(retry)
+                # Hermes opens streams in a helper thread. Exit this isolated child
+                # after the atomic checkpoint; exceptions there are otherwise retried.
+                emit("deferred", retryAt=retry, reason="Waiting for the shared Gemini quota or monthly budget")
+                os._exit(0)
             raise
     Completions.create = bounded_create
     history = []
@@ -151,8 +151,6 @@ def run(payload):
         tmp = checkpoint.with_suffix(".tmp")
         tmp.write_text(json.dumps(messages)); tmp.chmod(0o600); tmp.replace(checkpoint)
         emit("completed", summary=str(result.get("final_response", ""))[:12000])
-    except QuotaPause as pause:
-        emit("deferred", retryAt=pause.retry_at, reason="Waiting for the shared Gemini free quota")
     finally:
         agent.close()
 

@@ -1,3 +1,4 @@
+import { seedCulturalExamples } from "./cultural-examples";
 import { z } from "zod";
 import { DomainError } from "./errors";
 import {
@@ -69,6 +70,9 @@ export interface Venue {
   at: string;
 }
 export interface Outbound {
+  sender?: string;
+  attemptedAt?: string;
+  postedUrl?: string;
   id: string;
   publicationId: string;
   version: number;
@@ -166,7 +170,7 @@ export function initializeCulturalCamp(
     outbox: [],
     suppressed: [],
     influence: [],
-    examples: [],
+    examples: seedCulturalExamples(),
     evaluations: [],
   };
   const names = ["Ada", "Noor", "Ivo", "Theo"];
@@ -394,12 +398,20 @@ export function advanceWorkflow(camp: Camp, now: string) {
           p.approval?.version !== p.version)
       ) {
         t.status = "waiting_review";
+        campEvent(
+          camp,
+          "workflow.review",
+          "Quarto revision awaits operator review before distribution",
+          "scheduler",
+          now,
+          [t.id],
+        );
         continue;
       }
       const job = queueCampTurn(
         camp,
         t.role,
-        `Workflow task ${t.id} for publication ${t.publicationId}. ${procedures[t.role]}\nRead cultural/resources and previous task outputs. Submit your handoff using camp_workflow_submit with this task ID. If inputs are insufficient, use camp_workflow_wait and explain the missing input.`,
+        `Workflow task ${t.id} for publication ${t.publicationId}. ${procedures[t.role]}\nRead cultural/resources and previous task outputs. Submit your handoff using camp_workflow_submit with this task ID. If inputs are insufficient, use camp_workflow_submit with wait=true and explain the missing input.`,
         "agent",
         now,
       );
@@ -724,7 +736,8 @@ export function culturalResources(camp: Camp, actor: CampActor) {
   const s = structuredClone(state(camp));
   if (actor.kind === "agent") {
     s.examples = s.examples.filter(
-      (e) => e.split === "development" && e.role === actor.agentId,
+      (e) =>
+        e.split === "development" && e.reviewed && e.role === actor.agentId,
     );
     s.evaluations = [];
   }

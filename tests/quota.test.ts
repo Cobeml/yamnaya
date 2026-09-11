@@ -50,3 +50,42 @@ it("resets the daily quota at Pacific midnight across daylight transitions", () 
   ).toBe(false);
   expect(s.requests).toHaveLength(0);
 });
+
+it("reserves worst-case monthly cost durably and never spends while blocked", () => {
+  const s: QuotaState = { requests: [] };
+  const now = Date.parse("2026-09-11T12:00Z");
+  const paid = {
+    ...limits,
+    rpm: 100,
+    freeTierConfirmed: false,
+    monthlyBudgetMicros: 10000000,
+  };
+  expect(
+    reserveQuota(
+      s,
+      paid,
+      { id: "a", tokens: 100, training: false, costMicros: 6000000 },
+      now,
+    ).allowed,
+  ).toBe(true);
+  delete s.active;
+  const blocked = reserveQuota(
+    s,
+    paid,
+    { id: "b", tokens: 100, training: false, costMicros: 6000000 },
+    now + 120000,
+  );
+  expect(blocked.allowed).toBe(false);
+  expect(pacificDay(blocked.retryAt)).toBe("2026-10-01");
+  expect(s.spend?.reservedMicros).toBe(6000000);
+  expect(s.requests).toHaveLength(1); // daily history and monthly ledger remain
+  expect(
+    reserveQuota(
+      s,
+      paid,
+      { id: "c", tokens: 100, training: false, costMicros: 6000000 },
+      blocked.retryAt,
+    ).allowed,
+  ).toBe(true);
+  expect(s.spend?.reservedMicros).toBe(6000000);
+});

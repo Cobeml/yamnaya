@@ -1,4 +1,5 @@
 "use client";
+import CulturalPanel from "./cultural-panel";
 import dynamic from "next/dynamic";
 import {
   useCallback,
@@ -53,7 +54,8 @@ class SceneBoundary extends Component<
   }
 }
 type Summary = Pick<Camp, "id" | "name" | "domain" | "status" | "mode">;
-type Panel = "cube" | "agents" | "publications" | "activity" | "settings";
+type Panel =
+  "research" | "cube" | "agents" | "publications" | "activity" | "settings";
 async function api(route = "", data?: unknown) {
   const response = await fetch("/api/camps/" + route, {
     method: data === undefined ? "GET" : "POST",
@@ -346,12 +348,14 @@ export default function CampConsole() {
     [message, setMessage] = useState(""),
     [recipient, setRecipient] = useState("camp");
   const selectedCampId = useRef("");
+  const latestCamp = useRef<Camp | null>(null);
   const refreshSequence = useRef(0);
   const chooseCamp = useCallback(
     (nextId: string, value: Camp | null = null) => {
       selectedCampId.current = nextId;
       refreshSequence.current++;
       setId(nextId);
+      latestCamp.current = value;
       setCamp(value);
     },
     [],
@@ -369,13 +373,20 @@ export default function CampConsole() {
       }
       const result = await api();
       const target = current || result.camps[0]?.id;
-      const nextCamp = target ? await api(target) : null;
+      const rev = target ? await api(target + "/revision") : null;
+      const nextCamp = target
+        ? latestCamp.current?.id === target &&
+          latestCamp.current?.revision === rev.revision
+          ? latestCamp.current
+          : await api(target)
+        : null;
       if (sequence !== refreshSequence.current) return;
       setCamps(result.camps);
       if (!current && target) {
         selectedCampId.current = target;
         setId(target);
       }
+      latestCamp.current = nextCamp;
       setCamp(nextCamp);
     } catch (e) {
       if (sequence === refreshSequence.current)
@@ -401,6 +412,10 @@ export default function CampConsole() {
       setBusy(false);
     }
   }
+  const readResource = useCallback(
+    (route: string) => api(id + "/" + route),
+    [id],
+  );
   const post = (route: string, data: unknown) => api(id + "/" + route, data);
   const agent = camp?.agents.find((a) => a.id === selected) ?? camp?.agents[0];
   const config = agent?.configurations.find(
@@ -554,7 +569,10 @@ export default function CampConsole() {
         </div>
       </section>
       <aside
-        className={"camp-inspector " + (panel === "publications" ? "wide" : "")}
+        className={
+          "camp-inspector " +
+          (["publications", "research"].includes(panel) ? "wide" : "")
+        }
       >
         <nav className="camp-tabs">
           {(
@@ -562,6 +580,7 @@ export default function CampConsole() {
               { id: "cube", Icon: Box, label: "Cube" },
               { id: "agents", Icon: Users, label: "Agents" },
               { id: "publications", Icon: BookOpen, label: "Sites" },
+              { id: "research", Icon: BookOpen, label: "Research" },
               { id: "activity", Icon: Radio, label: "Log" },
               { id: "settings", Icon: Settings2, label: "Setup" },
             ] as const
@@ -1027,6 +1046,14 @@ export default function CampConsole() {
                 </ol>
               </>
             )}
+            {panel === "research" && (
+              <CulturalPanel
+                camp={camp}
+                act={act}
+                post={post}
+                read={readResource}
+              />
+            )}
             {panel === "settings" && (
               <>
                 <span className="camp-eyebrow">RESOURCES & AUTHORITY</span>
@@ -1231,6 +1258,7 @@ export default function CampConsole() {
                     name: field(d, "name"),
                     domain: field(d, "domain"),
                     mode: field(d, "mode"),
+                    ...(field(d, "focus") ? { focus: field(d, "focus") } : {}),
                   });
                   chooseCamp(c.id, c);
                   setCreating(false);
@@ -1247,6 +1275,14 @@ export default function CampConsole() {
                 <select name="domain">
                   <option value="research">Research & Quarto publishing</option>
                   <option value="general">General purpose</option>
+                </select>
+              </label>
+              <label className="camp-field">
+                Cultural focus
+                <select name="focus">
+                  <option value="">General camp</option>
+                  <option value="america">American cultural mimetics</option>
+                  <option value="china">Chinese cultural mimetics</option>
                 </select>
               </label>
               <label className="camp-field">

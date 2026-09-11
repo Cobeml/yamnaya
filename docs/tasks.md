@@ -48,3 +48,11 @@ Google image generation is an operator handoff through the signed-in Gemini/AI S
 ## Cultural-mimetics implementation
 
 In progress: local origin relay, content-addressed file artifacts, and indexed work projections. Existing 12 regressions pass. The production cutover, durable quota scheduler, two research pilots, boards, outreach approvals, and evaluations are being implemented and are not yet claimed live.
+
+### Cultural workflow and budget stage
+
+Implemented two four-role focus templates, source provenance and exact quotation checks, typed argument connections, sequential publication workflows, shared internal boards, exact Gmail/forum drafts and approvals, manual forum receipts, Slack digests/alerts, and reviewed development/held-out example sets. Quota pauses retain the transcript, release the worker, and resume without spending another mission turn. Paused workflows require explicit resumption; camp broadcasts record direction without waking every role.
+
+The operator approved a $10 monthly Gemini budget on 2026-09-11, within their $15 Google account cap. The gateway reserves conservative input plus maximum output/thinking cost in PostgreSQL before requesting Gemini 3.8 Flash. Reservations are not refunded; paid calls stop when verified prices expire. This bounds this application's requests, not other applications using the Google account. Images remain a website handoff.
+
+20 unit regressions, TypeScript, ESLint and production container builds pass. Dedicated local origin, search and tunnel deployment are being verified. GitHub returned 401 and Slack returned not_authed in read-only credential checks; no external message was sent. Gemini and Gmail credentials remain missing. Live model/publication/outreach success is not claimed.
