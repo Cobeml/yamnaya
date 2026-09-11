@@ -1,3 +1,4 @@
+import { localObjects } from "./camp-objects";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -27,7 +28,10 @@ export async function saveArtifact(
   const dir = path.join(root(), valid(campId));
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const file = path.join(dir, `${valid(buildId)}.json`);
-  await writeFile(file + ".tmp", JSON.stringify({ digest, files }), {
+  const object = await localObjects.put(
+    Buffer.from(JSON.stringify({ digest, files })),
+  );
+  await writeFile(file + ".tmp", JSON.stringify({ object }), {
     mode: 0o600,
   });
   await rename(file + ".tmp", file);
@@ -38,13 +42,16 @@ export async function loadArtifact(
   digest?: string,
 ) {
   if (databaseMode()) return loadDatabaseArtifact(campId, buildId, digest);
-  return verifyArtifact(
-    JSON.parse(
-      await readFile(
-        path.join(root(), valid(campId), `${valid(buildId)}.json`),
-        "utf8",
-      ),
+  const value = JSON.parse(
+    await readFile(
+      path.join(root(), valid(campId), `${valid(buildId)}.json`),
+      "utf8",
     ),
+  );
+  return verifyArtifact(
+    value.object
+      ? JSON.parse((await localObjects.get(value.object)).toString())
+      : value,
     digest,
   );
 }

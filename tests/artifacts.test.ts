@@ -31,6 +31,7 @@ it("serves digest-checked previews only on the isolated origin with a valid buil
   directory = await mkdtemp(path.join(tmpdir(), "camp-artifacts-"));
   vi.stubEnv("CAMP_ARTIFACT_STORAGE", "file");
   vi.stubEnv("CAMP_ARTIFACT_DIR", directory);
+  vi.stubEnv("CAMP_OBJECT_DIR", path.join(directory,"objects"));
   vi.stubEnv("CAMP_PREVIEW_SECRET", "a".repeat(48));
   vi.stubEnv("CAMP_PREVIEW_URL", "https://preview.example.org");
   vi.stubEnv("CAMP_PUBLIC_URL", "https://camp.example.org");

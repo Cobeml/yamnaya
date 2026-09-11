@@ -1,3 +1,4 @@
+import { relayCampRequest } from "../../../lib/camp-relay";
 import type { NextRequest } from "next/server";
 import {
   loadDatabaseArtifact,
@@ -33,6 +34,8 @@ export async function GET(
       request.nextUrl.host !== new URL(origin).host
     )
       return new Response("Preview origin required", { status: 403 });
+    const relayed = await relayCampRequest(request);
+    if (relayed) return relayed;
     const [campId, buildId, token, ...parts] = (await context.params).path;
     if (
       !campId ||

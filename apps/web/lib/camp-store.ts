@@ -174,7 +174,24 @@ export async function claimNextCampJob(
           ).length;
       for (const camp of camps) {
         const before = JSON.stringify(camp);
-        const job = claimCampJob(camp, owner, now, slots, camps.some(c=>c.jobs.some(j=>j.status==="leased"&&Date.parse(j.leaseUntil??"")>Date.now()&&["publication.render","code.execute"].includes(String(j.input.capability))))?0:1);
+        const job = claimCampJob(
+          camp,
+          owner,
+          now,
+          slots,
+          camps.some((c) =>
+            c.jobs.some(
+              (j) =>
+                j.status === "leased" &&
+                Date.parse(j.leaseUntil ?? "") > Date.now() &&
+                ["publication.render", "code.execute"].includes(
+                  String(j.input.capability),
+                ),
+            ),
+          )
+            ? 0
+            : 1,
+        );
         if (JSON.stringify(camp) !== before) {
           camp.revision++;
           await saveFile(camp);
@@ -186,7 +203,8 @@ export async function claimNextCampJob(
   const db = campDatabase();
   const result = await db.begin(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(642101)`;
-    const rows = await tx`SELECT id,state FROM camps ORDER BY id FOR UPDATE`;
+    const rows =
+      await tx`SELECT id,state FROM camps WHERE next_work_at <= now() OR state @? '$.jobs[*] ? (@.status == "leased")' ORDER BY last_claim_at NULLS FIRST, id FOR UPDATE`;
     const camps = rows.map((r) => r.state as Camp);
     const slots =
       2 -
@@ -201,13 +219,33 @@ export async function claimNextCampJob(
     for (const camp of camps) {
       const sequence = camp.events.length;
       const before = JSON.stringify(camp);
-      const job = claimCampJob(camp, owner, now, slots, camps.some(c=>c.jobs.some(j=>j.status==="leased"&&Date.parse(j.leaseUntil??"")>Date.now()&&["publication.render","code.execute"].includes(String(j.input.capability))))?0:1);
+      const job = claimCampJob(
+        camp,
+        owner,
+        now,
+        slots,
+        camps.some((c) =>
+          c.jobs.some(
+            (j) =>
+              j.status === "leased" &&
+              Date.parse(j.leaseUntil ?? "") > Date.now() &&
+              ["publication.render", "code.execute"].includes(
+                String(j.input.capability),
+              ),
+          ),
+        )
+          ? 0
+          : 1,
+      );
       if (before === JSON.stringify(camp)) continue;
       camp.revision++;
       await tx`UPDATE camps SET revision=${camp.revision},state=${tx.json(camp as never)} WHERE id=${camp.id}`;
       for (const event of camp.events.slice(sequence))
         await tx`INSERT INTO camp_events(camp_id,sequence,event) VALUES(${camp.id},${event.sequence},${tx.json(event as never)}) ON CONFLICT DO NOTHING`;
-      if (job) return { camp, job };
+      if (job) {
+        await tx`UPDATE camps SET last_claim_at=now() WHERE id=${camp.id}`;
+        return { camp, job };
+      }
     }
     return null;
   });

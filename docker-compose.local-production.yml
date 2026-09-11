@@ -1,0 +1,17 @@
+services:
+  web:
+    env_file: .env.camps.production
+    environment:
+      CAMP_DATABASE_URL: postgres://camps:camps@postgres:5432/camps
+      CAMP_PUBLIC_URL: https://yamnaya.vercel.app
+      CAMP_ORIGIN_URL: ""
+  worker:
+    env_file: .env.camps.production
+    environment:
+      CAMP_API_URL: http://web:3110
+      CAMP_DATABASE_URL: postgres://camps:camps@postgres:5432/camps
+      CAMP_PUBLIC_URL: https://yamnaya.vercel.app
+      CAMP_PREVIEW_URL: https://yamnaya-camps-preview.vercel.app
+      CAMP_ARTIFACT_STORAGE: file
+      CAMP_OBJECT_DIR: /app/runtime/objects
+    ports: ["127.0.0.1:4114:4114"]

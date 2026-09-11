@@ -44,3 +44,7 @@ The hosted browser workflow passed on 2026-09-11: create and start a simulation 
 The pinned Hermes runtime and supervisor checks passed using the fake streaming model, including durable checkpoints, restricted tools and idempotent completion. All 12 unit regressions, TypeScript and ESLint pass. The main app responds successfully and unauthenticated camp API access returns 401.
 
 Google image generation is an operator handoff through the signed-in Gemini/AI Studio website. No Google API, billing connection, credit purchase or paid fallback is configured. The import check used a synthetic local fixture; actual Google generation and the account's remaining allowance were not tested. Live model, Slack and GitHub credentials remain unconfigured. The executor host must stay running for queued work.
+
+## Cultural-mimetics implementation
+
+In progress: local origin relay, content-addressed file artifacts, and indexed work projections. Existing 12 regressions pass. The production cutover, durable quota scheduler, two research pilots, boards, outreach approvals, and evaluations are being implemented and are not yet claimed live.

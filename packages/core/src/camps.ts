@@ -1,3 +1,4 @@
+import { initializeCulturalCamp, type CulturalState } from "./cultural";
 import { z } from "zod";
 import type { ImageBrief } from "./media";
 import { DomainError } from "./errors";
@@ -25,6 +26,7 @@ export type CampActor = {
 export type Activity =
   "idle" | "thinking" | "cube" | "talking" | "playing" | "training" | "blocked";
 export interface AgentConfiguration {
+  modelProfile?: {model:string;reasoning:"high"|"medium"|"low"};
   id: string;
   version: number;
   persona: string;
@@ -154,6 +156,7 @@ export interface CampJob {
 }
 export interface Camp {
   schemaVersion: 1;
+  cultural?: CulturalState;
   id: string;
   name: string;
   domain: "research" | "general";
@@ -199,6 +202,7 @@ export interface Camp {
 const identity = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,95}$/);
 export const campInputSchema = z.object({
   name: z.string().trim().min(2).max(100),
+  focus: z.enum(["america","china"]).optional(),
   domain: z.enum(["research", "general"]).default("research"),
   mode: z.enum(["live", "simulation"]).default("live"),
 });
@@ -376,6 +380,7 @@ export function createCamp(
     },
     game: { board: Array(9).fill(null), next: "X", winner: null },
   };
+  if (input.focus) initializeCulturalCamp(camp,input.focus,now);
   campEvent(
     camp,
     "camp.created",
@@ -933,6 +938,7 @@ export function claimCampJob(
     camp.budgets.socialTurns = 0;
   }
   for (const job of camp.jobs.filter((j) => j.status === "queued")) {
+    if (job.input.notBefore && Date.parse(String(job.input.notBefore)) > Date.parse(now)) continue;
     const reasoning = job.kind !== "tool";
     if (
       !reasoning &&
@@ -972,6 +978,7 @@ export function claimCampJob(
       else camp.budgets.missionTurns++;
     }
     job.status = "leased";
+    const workflowTask=camp.cultural?.tasks.find(t=>t.jobId===job.id);if(workflowTask)workflowTask.status="working";
     job.leaseOwner = owner;
     job.leaseUntil = new Date(Date.parse(now) + 360000).toISOString();
     job.attempts++;
@@ -1125,6 +1132,10 @@ export function promoteSkillCandidate(
     "CONFLICT",
   );
   const a = camp.agents.find((a) => a.id === c.agentId)!;
+  if(camp.cultural) {
+    const evaluation=camp.cultural.evaluations.filter(e=>e.candidateId===c.id&&e.configurationId===a.configurationId).at(-1);
+    requireCondition(evaluation && evaluation.cases.every(x=>x.candidate>=x.baseline) && evaluation.cases.some(x=>x.candidate>x.baseline), "A reviewed held-out comparison must show improvement without regression", "CONFLICT");
+  }
   requireCondition(
     !camp.jobs.some((j) => j.agentId === a.id && j.status === "leased"),
     "Wait for the current agent turn to finish",
@@ -1157,7 +1168,7 @@ export function breedAgent(
 ) {
   requireCampOperator(camp, actor);
   requireCondition(
-    camp.agents.length < 8,
+    !camp.cultural && camp.agents.length < 8,
     "Camp agent limit reached",
     "CONFLICT",
   );

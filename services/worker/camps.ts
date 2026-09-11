@@ -1,3 +1,4 @@
+import { startCampOrigin } from "./camp-origin";
 import { sandboxRequest } from "./sandbox-client";
 import { config } from "dotenv";
 import { App } from "@slack/bolt";
@@ -47,13 +48,13 @@ async function agentTurn(work: CampWork) {
       summary:
         "Simulation: instruction received. No model or external action ran. Use Live mode for Hermes reasoning.",
     };
-  if (!process.env.CAMP_MODEL_API_KEY)
+  if (!(camp.cultural ? process.env.CAMP_GEMINI_API_KEY : process.env.CAMP_MODEL_API_KEY))
     throw new Error(
       "CAMP_MODEL_API_KEY is not configured; no model call was made",
     );
   const agent = camp.agents.find((a) => a.id === job.agentId)!;
   const cfg = agent.configurations.find((c) => c.id === job.configurationId)!;
-  const invocationId = `${camp.id}-${job.id}`;
+  const invocationId = `${camp.id}-${job.id}-a${job.attempts}`;
   await runtime("/invocations", {
     invocationId,
     campId: camp.id,
@@ -62,10 +63,10 @@ async function agentTurn(work: CampWork) {
     sessionId: `${camp.id}-${agent.id}`,
     token: work.token,
     apiUrl: process.env.CAMP_API_URL,
-    model: process.env.CAMP_MODEL,
+    model: camp.cultural ? "gemini-3.8-flash" : process.env.CAMP_MODEL,
     apiMode: process.env.CAMP_MODEL_API_MODE ?? "chat_completions",
     modelProxyUrl: process.env.CAMP_MODEL_PROXY_URL,
-    text: String(job.input.text),
+    text: job.input.waitReason ? `Continue the saved task after a quota pause. Inspect existing results and do not repeat completed actions. Original task: ${job.input.text}` : String(job.input.text),
     systemPrompt: `You are ${agent.name}, ${agent.role}, in ${camp.name}. ${campDoctrine}\n${cfg.persona}\nUse camp_observe first. Your granted capabilities are provided by the cube; tools cannot grant additional authority. Preserve citations and explicitly identify inference. Author Quarto sources in provisioned publications. Render and propose a GitHub PR; only the operator can review publication.\nActive approved skills:\n${cfg.skills.map((s) => s.name + "\n" + s.content).join("\n\n")}`,
     timeoutSeconds: 300,
     maxIterations: 12,
@@ -89,6 +90,7 @@ async function agentTurn(work: CampWork) {
         }
       if (state.status === "completed")
         return { summary: state.summary, invocationId, runtime: "hermes" };
+      if(state.status === "deferred") return {deferred:true,retryAt:state.retryAt,reason:state.reason};
       if (state.status !== "running")
         throw new Error(
           `Hermes invocation ${state.status}; inspect runtime journal ${invocationId}`,
@@ -292,6 +294,7 @@ async function handle(work: CampWork) {
   try {
     const result =
       work.job.kind === "tool" ? await tool(work) : await agentTurn(work);
+    if(result && typeof result==="object" && "deferred" in result){const wait=result as unknown as {retryAt:string;reason:string};await campApi(`${work.camp.id}/worker/defer`,{jobId:work.job.id,owner:workerId,retryAt:wait.retryAt,reason:wait.reason});return;}
     await campApi(
       `${work.camp.id}/worker/complete`,
       {
@@ -371,6 +374,7 @@ if (slack) {
   await slack.start();
 }
 const gateway = startCampGateway();
+const origin = startCampOrigin();
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.on(signal, () => {
     stopping = true;
@@ -404,3 +408,4 @@ while (!stopping) {
 await Promise.allSettled(active);
 await slack?.stop();
 gateway.close();
+origin?.close();

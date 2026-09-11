@@ -59,18 +59,20 @@ def launch(payload, job):
                     event = json.loads(line)
                 except (ValueError, TypeError):
                     continue
-                if not isinstance(event, dict) or event.get("kind") not in ["tool.start", "tool.end", "completed", "failed"]:
+                if not isinstance(event, dict) or event.get("kind") not in ["tool.start", "tool.end", "completed", "failed", "deferred"]:
                     continue
                 with LOCK:
                     event["sequence"] = len(job["events"]) + 1
                     job["events"].append(event)
                     if event["kind"] == "completed":
                         job["summary"] = event.get("summary", "")
+                    if event["kind"] == "deferred":
+                        job["retryAt"] = event["retryAt"]; job["reason"] = event["reason"]
                     persist(job)
             code = process.wait()
             with LOCK:
                 if job["status"] != "cancelled":
-                    job["status"] = "completed" if code == 0 and "summary" in job else "failed"
+                    job["status"] = ("deferred" if "retryAt" in job else "completed") if code == 0 and ("summary" in job or "retryAt" in job) else "failed"
                 persist(job)
         finally:
             timer.cancel()

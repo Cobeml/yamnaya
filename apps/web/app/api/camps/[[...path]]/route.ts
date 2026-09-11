@@ -1,3 +1,6 @@
+import { readBoard, postBoard, sharedLibrary } from "../../../../lib/camp-boards";
+import { addSourceDossier, addConnection, startWorkflow, advanceWorkflow, submitWorkflow, resumeWorkflow, addVenue, draftOutbound, approveOutbound, suppressDestination, recordInfluence, recordEvaluation, addEvaluationExample, culturalResources } from "@yamnaya/core";
+import { relayCampRequest } from "../../../../lib/camp-relay";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -119,6 +122,8 @@ async function activeActor(req: NextRequest, camp: Camp) {
 }
 
 export async function GET(req: NextRequest, context: Context) {
+  const relayed = await relayCampRequest(req);
+  if (relayed) return relayed;
   try {
     const parts = (await context.params).path ?? [];
     if (parts[0] === "session") {
@@ -160,6 +165,10 @@ export async function GET(req: NextRequest, context: Context) {
     }
     const camp = await readCamp(parts[0]);
     const actor = await activeActor(req, camp);
+    if(parts[1]==="revision") return json({revision:camp.revision});
+    if(parts[1]==="board") return json({threads:await readBoard(camp)});
+    if(parts[1]==="library") return json({publications:await sharedLibrary(camp)});
+    if(parts[1]==="cultural") return json(culturalResources(camp,actor));
     if (parts[1] === "resources") {
       const query = req.nextUrl.searchParams;
       if (query.get("resource") === "evidence") {
@@ -211,6 +220,8 @@ export async function GET(req: NextRequest, context: Context) {
 }
 
 export async function POST(req: NextRequest, context: Context) {
+  const relayed = await relayCampRequest(req);
+  if (relayed) return relayed;
   try {
     const parts = (await context.params).path ?? [];
     const input = await body(req);
@@ -260,6 +271,7 @@ export async function POST(req: NextRequest, context: Context) {
     const current = await readCamp(id);
     const actor = await activeActor(req, current);
     const operation = parts.slice(1).join("/");
+    if(operation === "board") return json(await postBoard(current,actor,input));
     if (operation === "clone") {
       requireCampOperator(current, actor);
       const cloned = await insertCamp(
@@ -314,6 +326,18 @@ export async function POST(req: NextRequest, context: Context) {
               403,
             );
         }
+        if(operation === "cultural/sources") return addSourceDossier(camp,input,actor,now);
+        if(operation === "cultural/connections") return addConnection(camp,input,actor,now);
+        if(operation === "cultural/workflow") return startWorkflow(camp,String(input.publicationId),actor,now);
+        if(operation === "cultural/submit") return submitWorkflow(camp,input,actor,now);
+        if(operation === "cultural/resume") {resumeWorkflow(camp,String(input.id),actor,now);return {ok:true};}
+        if(operation === "cultural/venues") return addVenue(camp,input,actor,now);
+        if(operation === "cultural/outbound") return draftOutbound(camp,input,actor,now);
+        if(operation === "cultural/approve") return approveOutbound(camp,String(input.id),actor,now);
+        if(operation === "cultural/suppress") {suppressDestination(camp,String(input.destination),actor,now);return {ok:true};}
+        if(operation === "cultural/influence") return recordInfluence(camp,input,actor,now);
+        if(operation === "cultural/examples") return addEvaluationExample(camp,input,actor,now);
+        if(operation === "cultural/evaluations") return recordEvaluation(camp,input,actor,now);
         if (operation === "status") {
           setCampStatus(
             camp,
@@ -520,6 +544,7 @@ export async function POST(req: NextRequest, context: Context) {
         if (operation === "worker/schedule") {
           requireWorker(req);
           if (camp.status !== "running") return { ok: true };
+          advanceWorkflow(camp,now);
           if (
             camp.schedule.socialEnabled &&
             Date.parse(camp.schedule.nextSocialAt) <= Date.now() &&
@@ -634,7 +659,16 @@ export async function POST(req: NextRequest, context: Context) {
             now,
             [j.id],
           );
-          return { remaining: 23 - count, requestNumber: count + 1 };
+          const agent=camp.agents.find(a=>a.id===j.agentId)!;
+          return { remaining: 23 - count, requestNumber: count + 1, cultural:!!camp.cultural, training:j.kind==="training", profile:agent.configurations.find(c=>c.id===j.configurationId)?.modelProfile };
+        }
+        if(operation === "worker/defer") {
+          requireWorker(req);const j=requireCampLease(camp,String(input.jobId),String(input.owner),now);
+          const at=z.string().datetime().parse(input.retryAt);if(Date.parse(at)<=Date.now())throw new DomainError("Future resume time required");
+          j.status="queued";j.input.notBefore=at;j.input.waitReason=z.string().max(500).parse(input.reason);delete j.leaseOwner;delete j.leaseUntil;
+          const task=camp.cultural?.tasks.find(t=>t.jobId===j.id);if(task){task.status="waiting_quota";task.notBefore=at;}
+          camp.agents.find(a=>a.id===j.agentId)!.activity="idle";
+          campEvent(camp,"workflow.quota",String(input.reason),j.agentId,now,[j.id]);return {ok:true};
         }
         if (operation === "worker/check") {
           requireWorker(req);
