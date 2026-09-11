@@ -43,9 +43,9 @@ Put credentials in `.env.camps.production`, never in Git or chat. Restart with t
 | Setting | What to supply |
 | --- | --- |
 | `CAMP_GEMINI_API_KEY` | Gemini API key from the Tier 1 project with the existing $15 cap. The application budget is already $10. |
-| `CAMP_GITHUB_TOKEN` | Valid token for the two chosen repositories, with contents, PR, Actions/workflow and Pages permissions. The credential check returned 401. |
+| `CAMP_GITHUB_TOKEN` | Valid token for the two chosen repositories, with contents, PR, Actions/workflow and Pages permissions. No working credential is configured; the account probe returned 401. |
 | Repositories | Create/authorize `Cobeml/yamnaya-america` and `Cobeml/yamnaya-china`, or choose replacements in Sites. Enable Actions and Pages from Actions. Targets are scaffolded locally; remote repositories were not created. |
 | `CAMP_GMAIL_CLIENT_ID`, `CAMP_GMAIL_CLIENT_SECRET`, `CAMP_GMAIL_REFRESH_TOKEN`, `CAMP_GMAIL_SENDER` | OAuth client and refresh token consenting to `https://www.googleapis.com/auth/gmail.send`. Enable Gmail API in the client project and configure its consent screen. External Testing-mode grants can expire after seven days; review Google's production/verification requirements for your account. |
-| `CAMP_SLACK_BOT_TOKEN`, `CAMP_SLACK_APP_TOKEN`, `CAMP_SLACK_OPERATOR_IDS` | Bot and Socket Mode app tokens, plus your Slack user ID. Current auth check did not authenticate. Invite the bot to the chosen channel, create a thread and bind each camp under Setup. |
+| `CAMP_SLACK_BOT_TOKEN`, `CAMP_SLACK_APP_TOKEN`, `CAMP_SLACK_OPERATOR_IDS` | Bot and Socket Mode app tokens, plus your Slack user ID. No bot/app tokens are currently configured; the account probe did not authenticate. Invite the bot to the chosen channel, create a thread and bind each camp under Setup. |
 
 [Gmail scopes](https://developers.google.com/workspace/gmail/api/auth/scopes) and [OAuth setup](https://developers.google.com/identity/protocols/oauth2). No mailbox-reading credential, social-media password or paid search subscription is needed. Discord, Signal and MCP remain future connectors; Slack is the implemented notification path.
