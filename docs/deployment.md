@@ -9,12 +9,12 @@ Use a private, ignored `.env.camps.production` file with the camp operator/sessi
 ```bash
 CAMP_ENV_FILE=.env.camps.production pnpm db:migrate
 pnpm exec tsx scripts/camps/deploy-env.ts
+vercel domains add yamnaya-camps-preview.vercel.app # one-time project domain setup
 vercel deploy --prod --yes
-vercel alias set <production-deployment-host> yamnaya-camps-preview.vercel.app
 docker compose --env-file .env.camps -f docker-compose.yml -f docker-compose.hosted.yml up -d --build worker hermes
 ```
 
-The environment helper reads values privately and uploads only the server's allowlisted camp settings. It does not display secrets. The hosted Compose override directs the executor to Vercel while keeping model traffic and executable documents inside the Docker runtime. Reapply the preview alias when deploying a new production revision with the CLI.
+The environment helper reads values privately and uploads only the server's allowlisted camp settings. It does not display secrets. The hosted Compose override directs the executor to Vercel while keeping model traffic and executable documents inside the Docker runtime. Register the preview hostname as a production project domain, not just a deployment alias, so Vercel assigns it on each production deploy and does not place its separate login in front of signed reports.
 
 Signed previews are accepted only on the configured preview hostname and use a sandbox Content Security Policy. Rendered content cannot share the main application's origin. Artifact bytes are checked against their digest before streaming. PostgreSQL artifact storage is suitable for the bounded report workflow; large media collections should use an object-storage backend with the same provenance checks.
 

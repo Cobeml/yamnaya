@@ -1,4 +1,19 @@
 import { test, expect } from "@playwright/test";
+let campName = "";
+test.afterEach(async ({ page, baseURL }) => {
+  if (!campName) return;
+  const response = await page.request.get("/api/camps");
+  if (!response.ok()) return;
+  const { camps } = await response.json();
+  const camp = camps.find((c: { name: string }) => c.name === campName);
+  if (camp) {
+    const result = await page.request.post(`/api/camps/${camp.id}/status`, {
+      headers: { Origin: baseURL!, "Idempotency-Key": `archive-${camp.id}` },
+      data: { status: "archived" },
+    });
+    expect(result.ok()).toBeTruthy();
+  }
+});
 test("operator builds a camp, scopes authority and edits a Quarto publication", async ({
   page,
 }) => {
@@ -11,9 +26,8 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
     .fill(process.env.CAMP_OPERATOR_PASSWORD!);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByRole("button", { name: "Create camp", exact: true }).click();
-  await page
-    .getByLabel("Camp name", { exact: true })
-    .fill("Fieldnotes " + Date.now());
+  campName = "Fieldnotes " + Date.now();
+  await page.getByLabel("Camp name", { exact: true }).fill(campName);
   await page.locator('select[name="domain"]').selectOption("general");
   await page.locator('select[name="mode"]').selectOption("simulation");
   await page
@@ -23,7 +37,11 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     page.getByRole("heading", { name: "The black cube" }),
   ).toBeVisible();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "Start camp", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Pause camp", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("form", { name: "Create mission" })
     .getByRole("textbox")
@@ -106,10 +124,10 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
     preview.getByText("Verified calculation: 42", { exact: true }),
   ).toBeVisible();
   await expect(
-    preview.getByRole("img", { name: "Camp illustration" }),
+    preview.getByRole("figure", { name: "Camp illustration" }).getByRole("img"),
   ).toBeVisible();
   await expect(
-    preview.getByRole("img", { name: "Camp illustration" }),
+    preview.getByRole("figure", { name: "Camp illustration" }).getByRole("img"),
   ).toHaveJSProperty("naturalWidth", 32);
   await preview.screenshot({
     path: "runtime/screenshots/quarto-preview.png",

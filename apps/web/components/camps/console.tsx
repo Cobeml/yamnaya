@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useState,
+  useRef,
   Component,
   type ReactNode,
   type FormEvent,
@@ -130,7 +131,8 @@ function PublicationEditor({
     [version, setVersion] = useState(p.version),
     [newPath, setNewPath] = useState("");
   useEffect(() => {
-    const previous = p.history.find((entry) => entry.version === version)?.files[name];
+    const previous = p.history.find((entry) => entry.version === version)
+      ?.files[name];
     if (version !== p.version && text === previous) {
       setText(p.files[name] ?? "");
       setVersion(p.version);
@@ -343,32 +345,50 @@ export default function CampConsole() {
     [creating, setCreating] = useState(false),
     [message, setMessage] = useState(""),
     [recipient, setRecipient] = useState("camp");
+  const selectedCampId = useRef("");
+  const refreshSequence = useRef(0);
+  const chooseCamp = useCallback(
+    (nextId: string, value: Camp | null = null) => {
+      selectedCampId.current = nextId;
+      refreshSequence.current++;
+      setId(nextId);
+      setCamp(value);
+    },
+    [],
+  );
   const refresh = useCallback(async () => {
+    const sequence = ++refreshSequence.current;
+    const current = selectedCampId.current;
     try {
       const session = await api("session");
+      if (sequence !== refreshSequence.current) return;
       setSignedIn(!!session.actor);
       if (!session.actor) {
         setCamp(null);
         return;
       }
       const result = await api();
+      const target = current || result.camps[0]?.id;
+      const nextCamp = target ? await api(target) : null;
+      if (sequence !== refreshSequence.current) return;
       setCamps(result.camps);
-      const current = id || result.camps[0]?.id;
-      if (current) {
-        if (!id) setId(current);
-        setCamp(await api(current));
+      if (!current && target) {
+        selectedCampId.current = target;
+        setId(target);
       }
+      setCamp(nextCamp);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Camp service unavailable");
+      if (sequence === refreshSequence.current)
+        setError(e instanceof Error ? e.message : "Camp service unavailable");
     } finally {
-      setLoading(false);
+      if (sequence === refreshSequence.current) setLoading(false);
     }
-  }, [id]);
+  }, []);
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), 3000);
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, id]);
   async function act(fn: () => Promise<unknown>) {
     setBusy(true);
     setError("");
@@ -422,7 +442,7 @@ export default function CampConsole() {
               key={c.id}
               className={id === c.id ? "active" : ""}
               onClick={() => {
-                setId(c.id);
+                chooseCamp(c.id);
                 setSelected("");
               }}
             >
@@ -1163,7 +1183,7 @@ export default function CampConsole() {
                         const c = (await post("clone", {
                           name: field(d, "name"),
                         })) as Camp;
-                        setId(c.id);
+                        chooseCamp(c.id);
                       })
                     }
                   >
@@ -1212,8 +1232,7 @@ export default function CampConsole() {
                     domain: field(d, "domain"),
                     mode: field(d, "mode"),
                   });
-                  setId(c.id);
-                  setCamp(c);
+                  chooseCamp(c.id, c);
                   setCreating(false);
                 })
               }

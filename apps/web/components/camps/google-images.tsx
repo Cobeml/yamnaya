@@ -50,8 +50,8 @@ export default function GoogleImages({
       <summary>Google image studio</summary>
       <p className="camp-muted">
         Use your Google website allowance. Camps prepare briefs; you generate in
-        Gemini or AI Studio and import the result. Google shows your remaining
-        allowance. No API or automatic purchases.
+        Gemini or AI Studio and import the result. Google enforces your
+        account’s current limits. No API or automatic purchases.
       </p>
       <div className="camp-row">
         <a
