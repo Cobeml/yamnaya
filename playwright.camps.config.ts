@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 import { config } from "dotenv";
-config({ path: ".env.camps", quiet: true });
+config({ path: process.env.CAMP_ENV_FILE ?? ".env.camps", quiet: true });
 export default defineConfig({
   testDir: "./tests/camps-e2e",
   workers: 1,

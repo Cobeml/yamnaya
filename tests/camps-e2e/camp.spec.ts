@@ -55,6 +55,38 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     page.getByRole("button", { name: "Publish to GitHub Pages" }),
   ).toBeDisabled();
+  await page.getByText("Google image studio", { exact: true }).click();
+  await page
+    .getByLabel("Image brief", { exact: true })
+    .fill("Create a simple geometric illustration for the camp report.");
+  await page
+    .getByLabel("Image caption", { exact: true })
+    .fill("Camp illustration");
+  await page
+    .getByRole("button", { name: "Prepare Google image brief" })
+    .click();
+  await expect(
+    page.getByText("Awaiting your Google generation", { exact: true }),
+  ).toBeVisible();
+  const fixture = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 32;
+    canvas.height = 32;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#d5bd80";
+    context.fillRect(0, 0, 32, 32);
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  await page
+    .getByLabel("Import image: Camp illustration", { exact: true })
+    .setInputFiles({
+      name: "fixture.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(fixture, "base64"),
+    });
+  await expect(
+    page.getByText("Imported into Quarto", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Render site", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Open rendered preview" }),
@@ -73,6 +105,12 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     preview.getByText("Verified calculation: 42", { exact: true }),
   ).toBeVisible();
+  await expect(
+    preview.getByRole("img", { name: "Camp illustration" }),
+  ).toBeVisible();
+  await expect(
+    preview.getByRole("img", { name: "Camp illustration" }),
+  ).toHaveJSProperty("naturalWidth", 32);
   await preview.screenshot({
     path: "runtime/screenshots/quarto-preview.png",
     fullPage: true,
@@ -89,7 +127,7 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await page
     .getByRole("button", { name: "Save revision", exact: true })
     .click();
-  await expect(page.locator(".camp-tag")).toContainText("v3");
+  await expect(page.locator(".camp-tag")).toContainText("v4");
   await expect(
     page.getByRole("button", { name: "Publish to GitHub Pages" }),
   ).toBeDisabled();

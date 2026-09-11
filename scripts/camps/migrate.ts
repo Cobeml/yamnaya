@@ -11,7 +11,8 @@ const db = postgres(process.env.CAMP_DATABASE_URL, {
 try {
   await db.begin(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(642102)`;
-    await tx.unsafe(await readFile("migrations/0001_camps.sql", "utf8"));
+    for (const file of ["0001_camps.sql", "0002_artifacts.sql"])
+      await tx.unsafe(await readFile(`migrations/${file}`, "utf8"));
   });
   console.log("Camp database migrated.");
 } finally {

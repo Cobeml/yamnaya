@@ -34,3 +34,7 @@ CI runs the unit/build checks and container-backed runtime/browser workflows. Re
 Public browser access is unauthenticated and GET-only. Quarto execution has no external network; bundle assets and supply source data through the project. Interrupted external effects remain indeterminate until inspected. File persistence is for single-process local development. MCP is an extension contract, not an active connector.
 
 Run the application at **http://localhost:3110**; signed previews use **http://127.0.0.1:4112**. Configuration is in the private `.env.camps` file. See [operations](camps.md) and [architecture](architecture.md).
+
+## Hosted deployment and image tools
+
+Implemented database-backed artifact previews on a separate hostname and an operator-assisted Google website image workflow. All 12 policy, persistence, publication, image-import and preview-origin regressions pass. Vercel deployment and the hosted browser/runtime checks are in progress.

@@ -38,7 +38,13 @@ A paused camp cancels queued work; its active agent tokens can no longer mutate 
 
 The campsite animation projects persisted agent activities. Analysts approach the cube during external tool jobs, and social turns occupy the table area. It is a visualization of runtime activity, not evidence that work succeeded. Simulation turns, mechanical verification, and operator mission acceptance remain distinct.
 
+## Google website image workflow
+
+Agents can prepare image briefs for operator generation in Gemini or AI Studio. The operator imports outputs into versioned Quarto sources; import invalidates render approval. Yamnaya does not use a Google API or make purchases. See [Google tools](google-tools.md).
+
 ## Quarto publication contract
+
+Hosted previews use database-backed artifacts on a separate Vercel hostname. Local development can use worker disk storage. Both verify stored bytes against the artifact digest.
 
 A publication binds a repository, default branch, project directory, source files and monotonically increasing revision. The worker sends a source snapshot to the Quarto sandbox. Source references, bibliography keys, source digest and the rendered homepage are checked; the complete rendered artifact receives a digest. These mechanical checks do not prove factual accuracy.
 

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   DomainError,
+  requestImage,
+  importImage,
+  cancelImage,
   campView,
   requireCampActor,
   requireCampOperator,
@@ -343,6 +346,14 @@ export async function POST(req: NextRequest, context: Context) {
         if (operation === "grants") return addGrant(camp, input, actor, now);
         if (operation === "grants/revoke") {
           revokeGrant(camp, z.string().parse(input.id), actor, now);
+          return { ok: true };
+        }
+        if (operation === "images/request")
+          return requestImage(camp, input, actor, now);
+        if (operation === "images/import")
+          return importImage(camp, input, actor, now);
+        if (operation === "images/cancel") {
+          cancelImage(camp, String(input.id), actor, now);
           return { ok: true };
         }
         if (operation === "publications")

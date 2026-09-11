@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ImageBrief } from "./media";
 import { DomainError } from "./errors";
 
 export const capabilityNames = [
@@ -170,6 +171,7 @@ export interface Camp {
   messages: CampMessage[];
   publications: Publication[];
   candidates: SkillCandidate[];
+  imageBriefs?: ImageBrief[];
   jobs: CampJob[];
   events: CampEvent[];
   idempotency: Record<string, unknown>;
@@ -224,7 +226,7 @@ export const publicationSchema = z.object({
     .default("main"),
 });
 export const fileChangesSchema = z
-  .record(z.string(), z.string().max(200000))
+  .record(z.string(), z.string().max(750000))
   .refine(
     (v) =>
       Object.keys(v).length > 0 &&
@@ -407,6 +409,7 @@ export function campView(camp: Camp, actor: CampActor) {
         configurationId: a.configurationId,
       })),
       missions: camp.missions.slice(-8),
+      imageBriefs: (camp.imageBriefs ?? []).slice(-20),
       grants: camp.grants.filter(
         (g) => !g.revoked && (g.agentId === "*" || g.agentId === actor.agentId),
       ),

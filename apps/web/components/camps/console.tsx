@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { capabilityNames, type Camp, type Publication } from "@yamnaya/core";
 import "./camps.css";
+import GoogleImages from "./google-images";
 const Scene = dynamic(() => import("./scene"), {
   ssr: false,
   loading: () => <div className="camp-loading">Assembling the camp…</div>,
@@ -128,6 +129,13 @@ function PublicationEditor({
     [text, setText] = useState(p.files["index.qmd"] ?? ""),
     [version, setVersion] = useState(p.version),
     [newPath, setNewPath] = useState("");
+  useEffect(() => {
+    const previous = p.history.find((entry) => entry.version === version)?.files[name];
+    if (version !== p.version && text === previous) {
+      setText(p.files[name] ?? "");
+      setVersion(p.version);
+    }
+  }, [p.version, p.files, p.history, name, text, version]);
   const preview = camp.jobs
     .slice()
     .reverse()
@@ -160,6 +168,7 @@ function PublicationEditor({
         </a>
       </div>
       <h3>{p.title}</h3>
+      <GoogleImages camp={camp} publication={p} act={act} post={post} />
       <p className="camp-muted">
         Quarto sources → rendered preview → GitHub review → Pages
       </p>

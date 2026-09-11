@@ -23,3 +23,5 @@ pnpm test:e2e  # complete camp stack must be running
 ```
 
 Read [architecture](docs/architecture.md), [implementation status](docs/tasks.md), and [Hermes integration notes](docs/hermes.md) before changing behavior. MCP is reserved for future tool integration through the same grants and receipt verification.
+
+[Hosted deployment](docs/deployment.md) · [Google website image tools](docs/google-tools.md)

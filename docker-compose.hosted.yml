@@ -1,0 +1,7 @@
+services:
+  worker:
+    env_file: .env.camps.production
+    environment:
+      CAMP_API_URL: https://yamnaya.vercel.app
+      CAMP_ARTIFACT_STORAGE: postgres
+      CAMP_PREVIEW_URL: https://yamnaya-camps-preview.vercel.app
