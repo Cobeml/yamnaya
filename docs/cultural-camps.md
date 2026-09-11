@@ -16,6 +16,8 @@ Boards can stay private to one camp or be shared with the operator's other camps
 
 A marketer records each venue's rules and relevance, plus a public source for any email contact. Gmail drafts show the configured sender, recipient, subject and complete text before approval. A changed sender or changed publication requires a new draft. Gmail uses send-only OAuth. A message ID means Gmail accepted the request, not that a recipient read it. Timeouts become indeterminate and are never retried automatically.
 
+MXroute is a proposed alternative for expected correspondence, with additional durable sending limits. See the [MXroute research and implementation proposal](mxroute-email.md); SMTP support is not yet implemented.
+
 Forum contributions use **Copy approved contribution**, the operator's browser, and a public URL submitted afterward. The verifier looks for the complete normalized contribution on the approved hostname; it does not infer authorship. Sofiechan is a starting venue, with no automatic posting API. Suppression is stored across camps belonging to the same operator and checked before delivery.
 
 Influence records distinguish independent citations, discussion, reuse and follow-up from internal references. These are operator-attested evidence links, not a fabricated readership metric. Slack sends a daily digest after 18:00 America/New_York, review/error notices, and 7-/30-day outcome-review reminders for confirmed outbound work. Delivery records prevent automatic duplicates; unknown sends remain indeterminate.

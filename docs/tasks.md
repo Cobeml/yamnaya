@@ -76,3 +76,9 @@ On September 11, 2026, the operator supplied a working GitHub token in `.env.cam
 Created public `Cobeml/yamnaya-america` and `Cobeml/yamnaya-china` repositories and uploaded each pilot's 13 scaffold/metadata/workflow files. Every uploaded file was read back at its commit and compared byte-for-byte. Both repositories use `main`, GitHub-owned Actions, read-only default workflow tokens, and GitHub Pages `build_type=workflow`. No Pages workflow was dispatched; public site deployment still uses reviewed camp artifacts.
 
 Added an idempotent provisioning script sharing the worker's exact Pages workflow. TypeScript, targeted ESLint and the existing GitHub publication regression pass. Gemini's dedicated key was not found in the inspected environment files; its location was requested separately. Gmail and Slack setup remain pending.
+
+### Gemini configuration and MXroute research
+
+The operator subsequently added `CAMP_GEMINI_API_KEY` to `.env.camps`. Copied that value privately into `.env.camps.production` and recreated the web and worker services. The running worker confirms key presence, and its authenticated camp read returns 200 with both research pilots paused. No model request was made; provider authentication and paid reasoning remain unverified.
+
+Researched official MXroute SMTP/API documentation and sending policies. The [MXroute proposal](mxroute-email.md) describes account setup, a worker SMTP adapter, durable low-volume limits, approval preservation and live verification. MXroute prohibits unsolicited outreach; conflicting newsletter documentation needs provider clarification before publication mailing lists. The connector is not implemented and no email was sent. This update changes documentation only; no application regression suite was rerun.
