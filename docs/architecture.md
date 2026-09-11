@@ -1,73 +1,56 @@
-# Architecture and demo contract
+# Computer maneuver camps
 
-The default demo mission is to contain exposed contractor access while unaffected service points and bulk AMI intake continue. The advanced mission restores trustworthy meter operations after a mapping incident. Utility behavior and authority are deterministic. OpenClaw chooses investigations and response plans dynamically through a bounded capability interface.
+Yamnaya's default experience is a world of mission-oriented camps. The same cycle applies across purposes: observe, contextualize, propose, rehearse, authorize, maneuver, verify. A camp combines a mission, agent configurations, resources, tool grants, evidence, publications and an append-only event history. The black cube represents the operator's authority; it is not itself an autonomous agent.
 
 ```mermaid
 flowchart LR
-  SOR[Utility CIS / GIS / work / field sources] --> Adapter[CSV / XML adapter]
-  Adapter --> Pipeline[Mapping and synchronization stages]
-  Pipeline --> MDM[MDM associations and cache]
-  AMI[Separate bulk AMI feed] --> Reads[Read throughput model]
-  Field[Meter installations and work orders] --> Evidence[Field acknowledgement]
-  UI[Human dashboard / Slack personas] --> API[Policy and incident API]
-  Defender[Docker: OpenClaw / Astra defender] --> API
-  Defender --> Browser[Docker: Chromium admin browser]
-  Browser --> API
-  Red[Docker: bounded OpenClaw adversary] --> RedAPI[Restricted attacker API]
-  RedAPI --> API
-  API --> DB[(PostgreSQL state / jobs / audit)]
-  Executor[Docker: job executor] --> API
-  Executor --> Lab[Isolated mapping test / execution service]
-  Executor --> PR[GitHub incident PR]
-  Executor --> Slack[Slack Socket Mode]
-  API --> Pipeline
-  Evidence --> API
+  Human[Operator / bound Slack identity] --> API[Authenticated camp API]
+  Scene[3D campsite and inspectors] <--> API
+  API --> Core[Deterministic camp and domain policy]
+  API --> DB[(PostgreSQL state, jobs and events)]
+  Worker[Durable camp worker] <--> API
+  Worker --> Hermes[Hermes supervisor / private profiles]
+  Hermes --> API
+  Hermes --> Proxy[Model gateway / request reservations]
+  Proxy --> Provider[Configured model provider]
+  Worker --> Research[Public research browser and fetch]
+  Worker --> Sandbox[Isolated Quarto / code sandbox]
+  Sandbox --> Artifacts[Digest-bound artifacts / separate preview origin]
+  Worker --> GitHub[Source PR / reviewed Pages artifact]
+  Worker --> Slack[Slack Socket Mode]
 ```
 
-## Runtime split
+## Ownership and boundaries
 
-Local Compose hosts PostgreSQL, Next.js, the executor, code lab, and two OpenClaw gateways. The hosted topology puts Next.js on Vercel and state in Neon; the executor, code lab, Chromium, and OpenClaw stay on this machine. Vercel handles bounded requests, never an agent or worker loop.
+- `packages/core/src/camps.ts`: schemas and deterministic transitions, camp authority, expiring grants, publication revisions, job eligibility, daily budgets, training candidates, lineage and legal games. No effects or model calls.
+- `packages/core/src/domains/cyber`: the retained utility model, ontology, policy, ingestion, rehearsal and independent verification. Compatibility reexports preserve existing callers.
+- `apps/web`: signed operator sessions and camp/job-scoped agent identities; bounded JSON requests; PostgreSQL transactions, revisions, idempotency and audit projections; 3D view and review controls. Browser/model approval claims have no authority.
+- `services/worker/camps.ts`: scheduler, connector effects, runtime supervision and independently checked results. Web requests queue work rather than waiting for models, renders or deployments.
+- `services/hermes`: pinned upstream runtime, a private supervisor, one child process per invocation, persistent per-camp/per-agent home and versioned conversation checkpoints. Only explicit cube tools and private memory are exposed. No built-in shell, filesystem editing, unbounded delegation or direct provider credentials.
+- `services/sandbox` and `services/browser`: constrained execution and public research. Publication/code execution has a read-only container filesystem, temporary workspace, no external network and no credentials. Its process namespace is recycled after each job. The browser exposes only mediated public GET requests. Neither mounts the development checkout.
 
-OpenClaw is pinned to the official 2026.9.3 browser image by digest. The configured model is `openai/gpt-6-astra`, using the Responses provider and explicitly selecting `agentRuntime.id: openclaw`. Defender and attacker have separate persistent state/workspaces. No runtime mounts this development checkout or the Docker socket.
+## State and execution
 
-The driver resumes one conversation per role/run when relevant evidence, access state, plans, or human input changes. Default limits are 40 defender turns, 12 attacker turns, and 12 accepted-or-denied authorized attack attempts per run. Heartbeats, scheduled automation, shell/file tools, and subagent spawning are disabled. The defender browser is limited to the configured utility hostname; the attacker has no browser tool. Tool authorization is enforced again by the API.
+Camp mutations clone state, apply deterministic transitions and commit under a per-camp PostgreSQL advisory/row lock. State and event rows commit together. Idempotency keys return the original result. File storage is an explicit single-process development option with serialized atomic writes; it is not a hosted fallback.
 
-The defender tool adapter projects the authorized API state into a bounded current view below OpenClaw's tool-output limit. It preserves current authority, checks, scope and recent human messages; older evidence and artifact source can be retrieved by ID. The full dashboard/persistence view remains intact. Defender wake conditions track threat, human input, scope, access, worker, plan and field-state changes rather than repeated throughput observations.
+Claims reserve daily reasoning budgets atomically across camps, permit two reasoning turns globally and one writer per agent, and issue a six-minute lease. External tool jobs can run while their parent Hermes turn awaits a result. Capability scope, grant expiry, camp status and configuration are checked at request, claim and execution. Publication operations also bind a source version and approved artifact digest. The model gateway reserves a bounded request allowance in camp state before provider access and records reported token usage when available.
 
-Slack Socket Mode belongs to the executor. Authenticated Slack user IDs become human actors in the backend, independently of the model. The defender sees their statements and approval changes on its next turn. A claim inside a message never changes a role or approval policy.
+A paused camp cancels queued work; its active agent tokens can no longer mutate state or reserve model calls. The worker cancels the corresponding Hermes invocation on its next check. Expired leases become indeterminate and are not automatically replayed. Already delivered remote effects require reconciliation, not an invented failure/success receipt.
 
-Recording instrumentation is an observation channel outside utility authority. The driver uses an explicit stable OpenClaw session per role/run; plugin tool hooks match that session and write sanitized call metadata to the role's existing private state volume. A host-only terminal collector combines those records with existing API receipts and published plan rationales. It neither returns combined telemetry to the agents nor alters their tool permissions. Browser tickets, snapshots, raw tool results, provider reasoning fields, and credentials are excluded from recording output. A recording receipt is never a recovery receipt.
+The campsite animation projects persisted agent activities. Analysts approach the cube during external tool jobs, and social turns occupy the table area. It is a visualization of runtime activity, not evidence that work succeeded. Simulation turns, mechanical verification, and operator mission acceptance remain distinct.
 
-## Utility fidelity
+## Quarto publication contract
 
-The interview's integration shape remains: utility sources own customer/service-point/asset/work information; CSV or `SDPSyncMessage/Payload/Record` XML enters a normalized pipeline; source mapping, path resolution, SOR filtering, value mapping, premerge, merge, derivation, postmerge, cache invalidation, save, and status/exception stages are retained in transaction evidence. Effective dates, meter MRIDs, outgoing meter end dates, and source provenance drive relationship behavior. Bulk AMI reads are separate.
+A publication binds a repository, default branch, project directory, source files and monotonically increasing revision. The worker sends a source snapshot to the Quarto sandbox. Source references, bibliography keys, source digest and the rendered homepage are checked; the complete rendered artifact receives a digest. These mechanical checks do not prove factual accuracy.
 
-The fixture has 20 service points, 23 meters, three exchanges, a primary worker, an independent reserve, four synthetic people, credentials, code artifacts, a cache, and work orders. The source and physical installation advance before the pending integration transactions. The compromised mapper both fails to end-date the outgoing meter and sends replacements to the wrong service point.
+The operator reviews the preview and approves that exact digest. Source edits and rollbacks create a new revision; rendering different bytes invalidates old approval. GitHub receives a source PR with the managed publication workflow. Before publication the worker verifies source bytes at the recorded PR head, merges that head under GitHub's protections, writes the reviewed output to an artifact branch, verifies its Git tree/blob hashes and dispatches Pages. Publication code is never re-executed in the credential-bearing deployment worker. Completion requires the expected public release marker; delayed or uncertain delivery remains indeterminate.
 
-Simplifications are explicit: one utility segment and active incident; collapsed CIS/GIS/WMS source snapshots; stage names with a compact mapper rather than actual enterprise products; counter-based AMI batches; digital field records acknowledged by an operations persona rather than hardware sensing; a trusted seed artifact rather than an initial real deployment; and consecutive SDP groups validated together on input admission, with admitted rows executed as individual normalized transactions. This is not a complete FlexSync implementation or a claim about a real utility vulnerability.
+Reports should be concise, retain citations, distinguish evidence from inference, and use graphics or client-side interactivity only when useful. Quarto is the document and website system; GitHub provides version control and review. MCP remains a future connector boundary using these same grants, jobs and receipt verifiers.
 
-## State, effects, and trust
+## Preserved cyber behavior
 
-PostgreSQL stores a versioned run snapshot plus relational object, relationship, approval, and append-only audit projections. A transaction-scoped advisory lock serializes mutation and first-run initialization. Expected run IDs reject work after reset, revision guards reject stale worker mappings, and idempotency keys prevent duplicate effects. File storage exists only for single-process development and is refused on Vercel.
+New camp agents use Hermes, including the synthetic defender and adversary. Original utility authorizations, plan versions, rehearsal and independently checked action receipts remain in the cyber domain. Synthetic adversaries receive only the restricted observation/action view. Their contexts omit physical ground truth and the private interview. Cyber code recovery retains isolated mapping tests and the incident PR adapter.
 
-Rehearsal runs on a clone of the current state and cannot invent field acknowledgements or live test receipts. Execution requires current role approvals, matching threat version, unexpired authorization, and action prerequisites. A new adversary action invalidates pending authority. Every applied step records an action receipt; jobs use leases and retain their completed step index across restarts. Ambiguous external delivery is marked indeterminate and requires reconciliation.
+The old dashboard/API/deployment is available separately for rollback and regression, with its detailed contract in [cyber architecture](cyber-architecture.md). Its running OpenClaw deployment was not migrated in place. New default Compose services are named `yamnaya-camps` and use independent ports and volumes.
 
-Model-produced mapping code is tested in a separate container with an internal-only Docker network, no credentials, no capabilities, a read-only filesystem, process/memory limits, and a short-lived Node child. Node `vm` adds a guard but is not the isolation boundary. The executor verifies source digests, retains test receipts, creates an isolated GitHub PR in live mode, and then promotes the validated artifact under platform approval.
-
-Evaluator ground truth is not returned to either agent. Defender observations include operational source evidence and confirmed field reports; attacker observations contain only the synthetic contractor-accessible surface. Final mission checks independently compare source relationships, cache, field acknowledgement, worker provenance, denied credential probes, queue disposition, and continued healthy processing.
-
-## Evidence labels
-
-`simulation` runs allow manual candidates and local tested patches; `live` runs enable model drivers and require a GitHub PR for corrective patch execution plus Slack for delivery; `replay` is deterministic evidence playback/evaluation. A plan's `VERIFIED` status means its individual requested steps completed and checks were recomputed. Only run status `verified` means **all mission checks passed and security-approved closure executed**. A containment plan can complete while the mission remains unresolved.
-
-Primary runtime references: [OpenClaw Docker](https://docs.openclaw.ai/install/docker), [plugin tools](https://docs.openclaw.ai/plugins/building-plugins), [browser configuration](https://docs.openclaw.ai/tools/browser/configuration), and [heartbeat controls](https://docs.openclaw.ai/gateway/heartbeat).
-
-## Simple containment mission
-
-`credential-leak` is the default presenter scenario. The same utility integration structure remains, with aligned initial meter records, one planned exchange, and one bounded agent-initiated misuse of exposed contractor access. A trusted leak detector identifies both contractor grants; an ingress check rejects the suspect data update before an association write, while the work-order audit identifies the affected digital dispatch. The attacker cannot deploy code, pivot, or exceed one attempt on this surface. This models a small containment exercise, not a complete recovery incident.
-
-The public mission objective is visible to the defender; evaluator scenario identifiers and physical truth remain hidden. `disable_principal` requires security and platform approval and independently evidenced exposed access for that principal. It revokes every existing grant for that principal and probes denial. Quarantine requires operations approval in this mission and holds both the rejected data record and affected field work. The executor refuses advanced repair/browser actions in this mission; advanced recovery retains its existing policies. Closure requires all three current approvals and the containment verifier. The code/data/cache/operator/continuity checks stay intact; physical and queue checks require a retained scoped hold instead of field confirmation and resumption.
-
-A successful rehearsal creates version-bound, role-specific Slack review notifications automatically. The worker renders exact stored plan steps, explains each employee's decision and replies with recorded approval status. Identity, channel, incident thread, plan version, threat version and expiration remain server checked. Backticks around an otherwise exact command are accepted; prose never grants authority. Approval records now optionally retain their authenticated channel, and notifications optionally retain their review reference; both are additive JSON snapshot fields and need no relational migration. Legacy snapshots and recovery recording manifests remain readable.
-
-Containment recording/export gates require all three current Slack approvals, delivered requests, independently checked code integrity and the retained affected scope. They do not require a PR or claim code repair. Exports explicitly label the containment objective. The three participants use Slack; the presentation view observes results and the presenter retains stop control.
+See [camp operations](camps.md) for configuration and known limits, and [tasks](tasks.md) for the actual validation record.

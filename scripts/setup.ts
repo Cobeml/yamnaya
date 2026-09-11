@@ -49,5 +49,5 @@ const missing = secrets.filter((key) => !env[key]);
 if (missing.length)
   throw new Error(`Missing local configuration: ${missing.join(", ")}`);
 console.log(
-  "Role passwords are in .env. Start local services with: docker compose --profile local up -d --build",
+  "Role passwords are in .env. Start local services with: docker compose -f docker-compose.cyber.yml --profile local up -d --build",
 );

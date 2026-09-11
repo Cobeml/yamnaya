@@ -25,7 +25,14 @@
     "scenario": "tsx scripts/scenario.ts",
     "evaluate": "tsx scripts/evaluate.ts",
     "preflight": "tsx scripts/preflight.ts",
-    "reconcile": "tsx scripts/reconcile.ts"
+    "reconcile": "tsx scripts/reconcile.ts",
+    "camps:setup": "tsx scripts/camps/setup.ts",
+    "camps:migrate": "tsx scripts/camps/migrate.ts",
+    "camps:dev": "pnpm --filter @yamnaya/web exec next dev --hostname 0.0.0.0 --port 3110",
+    "camps:worker": "tsx services/worker/camps.ts",
+    "camps:up": "docker compose --env-file .env.camps up -d --build",
+    "camps:down": "docker compose --env-file .env.camps down",
+    "camps:test:e2e": "playwright test --config playwright.camps.config.ts"
   },
   "dependencies": {
     "@slack/bolt": "^4.6.0",

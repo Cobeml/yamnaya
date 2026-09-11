@@ -1,0 +1,170 @@
+name: yamnaya
+services:
+  postgres:
+    image: postgres:17-alpine
+    profiles: [local]
+    environment:
+      {
+        POSTGRES_USER: yamnaya,
+        POSTGRES_PASSWORD: yamnaya,
+        POSTGRES_DB: yamnaya,
+      }
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    ports: ["127.0.0.1:5544:5432"]
+    healthcheck:
+      {
+        test: [CMD-SHELL, "pg_isready -U yamnaya"],
+        interval: 3s,
+        timeout: 3s,
+        retries: 20,
+      }
+    restart: unless-stopped
+    networks: [application]
+  migrate:
+    profiles: [local]
+    build: { context: ., dockerfile: Dockerfile.app, target: worker }
+    command: [node_modules/.bin/tsx, scripts/migrate.ts]
+    environment:
+      { DATABASE_URL: "postgres://yamnaya:yamnaya@postgres:5432/yamnaya" }
+    depends_on: { postgres: { condition: service_healthy } }
+    networks: [application]
+  web:
+    profiles: [local]
+    build: { context: ., dockerfile: Dockerfile.app, target: web }
+    env_file: .env
+    environment:
+      {
+        DATABASE_URL: "postgres://yamnaya:yamnaya@postgres:5432/yamnaya",
+        YAMNAYA_STORAGE: postgres,
+        YAMNAYA_EXPERIENCE: cyber,
+        HOSTNAME: 0.0.0.0,
+        PORT: "3100",
+      }
+    ports: ["127.0.0.1:3100:3100"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    healthcheck:
+      {
+        test:
+          [
+            CMD,
+            node,
+            -e,
+            "fetch('http://localhost:3100/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          ],
+        interval: 10s,
+        timeout: 5s,
+        retries: 10,
+      }
+    restart: unless-stopped
+    networks: [application]
+  code-lab:
+    build: { context: ., dockerfile: Dockerfile.app, target: code-lab }
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 64
+    healthcheck:
+      {
+        test:
+          [
+            CMD,
+            node,
+            -e,
+            "fetch('http://localhost:4100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          ],
+        interval: 10s,
+        timeout: 3s,
+        retries: 10,
+      }
+    restart: unless-stopped
+    networks: [code-isolation]
+  worker:
+    build: { context: ., dockerfile: Dockerfile.app, target: worker }
+    env_file: .env
+    environment:
+      {
+        YAMNAYA_URL: "${YAMNAYA_DOCKER_URL:-http://web:3100}",
+        CODE_LAB_URL: "http://code-lab:4100",
+      }
+    volumes: [worker-artifacts:/app/runtime]
+    depends_on: { code-lab: { condition: service_healthy } }
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 2g
+    cpus: 2
+    restart: unless-stopped
+    networks: [application, code-isolation]
+  openclaw-agent:
+    profiles: [agents]
+    build: .
+    container_name: openclaw-sandbox
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      YAMNAYA_URL: ${YAMNAYA_DOCKER_URL:-http://web:3100}
+      YAMNAYA_AGENT_ROLE: defender
+      DEFENDER_TOKEN: ${DEFENDER_TOKEN}
+      DEFENDER_TURN_LIMIT: ${DEFENDER_TURN_LIMIT:-40}
+    volumes:
+      [
+        defender-state:/home/node/.openclaw,
+        defender-workspace:/home/node/workspace,
+      ]
+    ports: ["127.0.0.1:18789:18789"]
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    shm_size: 1gb
+    mem_limit: 8g
+    cpus: 4
+    healthcheck:
+      {
+        test:
+          [
+            CMD,
+            node,
+            -e,
+            "fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          ],
+        interval: 15s,
+        timeout: 5s,
+        start_period: 90s,
+        retries: 6,
+      }
+    restart: unless-stopped
+    networks: [application]
+  attacker-agent:
+    profiles: [agents]
+    build: .
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      YAMNAYA_URL: ${YAMNAYA_DOCKER_URL:-http://web:3100}
+      YAMNAYA_AGENT_ROLE: attacker
+      ATTACKER_TOKEN: ${ATTACKER_TOKEN}
+      ATTACKER_TURN_LIMIT: ${ATTACKER_TURN_LIMIT:-12}
+    volumes:
+      [
+        attacker-state:/home/node/.openclaw,
+        attacker-workspace:/home/node/workspace,
+      ]
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 4g
+    cpus: 2
+    restart: unless-stopped
+    networks: [application]
+networks:
+  application: { driver: bridge }
+  code-isolation: { driver: bridge, internal: true }
+volumes:
+  postgres-data:
+  worker-artifacts:
+  defender-state:
+  defender-workspace:
+  attacker-state:
+  attacker-workspace:

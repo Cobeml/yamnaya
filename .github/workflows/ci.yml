@@ -32,7 +32,7 @@ jobs:
       # It generates disposable local credentials. No repository secrets required.
       - run: pnpm run setup --slack-fixture
       - run: pnpm exec playwright install --with-deps chromium
-      - run: docker compose --profile local up -d --build --wait
+      - run: docker compose -f docker-compose.cyber.yml --profile local up -d --build --wait
       - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
@@ -40,5 +40,27 @@ jobs:
           name: browser-evidence
           path: |
             playwright-report
+            test-results
+            runtime/screenshots
+  camps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.32.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm camps:setup
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: docker compose --env-file .env.camps up -d --build
+      - run: docker compose --env-file .env.camps exec -T -e CAMP_HERMES_SUPERVISOR_URL=http://127.0.0.1:8765 hermes python /opt/yamnaya/test-hermes.py
+      - run: pnpm camps:test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: camp-browser-evidence
+          path: |
+            playwright-report/camps
             test-results
             runtime/screenshots
