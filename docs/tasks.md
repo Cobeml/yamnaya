@@ -13,7 +13,16 @@ Yamnaya provides general-purpose and research camps with one mission ontology: o
 
 ## Validation
 
-All 10 camp policy, persistence and publication regressions pass, along with TypeScript and ESLint. Production container builds, the camp browser workflow and pinned Hermes runtime contract are being checked against this revision.
+Verified locally on 2026-09-11:
+
+- All 10 camp policy, persistence and publication regressions pass; TypeScript and ESLint pass.
+- Every production container builds, the PostgreSQL migration succeeds, and all six persistent camp services run successfully.
+- The browser workflow passes against the rebuilt stack: a general-purpose camp receives a mission, edits a Quarto site, executes Python during rendering, opens the preview, approves the build, invalidates approval on edit, scopes an agent grant and plays a legal game.
+- The actual pinned Hermes runtime passes observation, checkpoint and restricted-tool checks against a fake streaming model. Its supervisor passes process launch, durable completion and idempotent resubmission checks. No paid model call is claimed.
+- The production route manifest contains the camp page, camp API and standard not-found page. Source references, imports and deployment dependencies were checked.
+- Desktop and mobile camp screenshots and the Quarto preview are saved under `runtime/screenshots`; the desktop layout was visually inspected.
+
+CI runs the unit/build checks and container-backed runtime/browser workflows. Remote CI and live external connector operations have not been exercised for this revision.
 
 ## Live integration gates and limits
 

@@ -14,6 +14,7 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await page
     .getByLabel("Camp name", { exact: true })
     .fill("Fieldnotes " + Date.now());
+  await page.locator('select[name="domain"]').selectOption("general");
   await page.locator('select[name="mode"]').selectOption("simulation");
   await page
     .getByRole("dialog")

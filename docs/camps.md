@@ -20,7 +20,7 @@ For host UI development, stop the Docker web service first and run `pnpm camps:d
 
 ## A research-to-publication mission
 
-1. Create a research camp. Live mode uses Hermes; Simulation records bounded turns without reasoning. Start the camp.
+1. Create a research or general-purpose camp. Both use the same agents and scoped tools; give each camp a mission suited to its purpose. Live mode uses Hermes; Simulation records bounded turns without reasoning. Start the camp.
 2. Under **Sites**, create a publication bound to an existing GitHub repository and its default branch. The project directory can place Quarto sources in a repository subfolder.
 3. Under **Setup**, grant the agents the tools they need. Give the camp a concrete mission through the cube. Agents can inspect evidence, exchange internal messages, edit provisioned Quarto projects, request renders, and propose a PR.
 4. Review the rendered preview and GitHub PR. Approve the current build, then publish. Publication merges the exact source PR and deploys the already-rendered artifact through GitHub Pages. Editing or restoring sources creates a new revision and invalidates the previous approval.
