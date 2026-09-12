@@ -29,6 +29,14 @@ Proposed private variables in `.env.camps` (not implemented yet):
 
 Also supply the sender display name and an operator-controlled test recipient. No MXroute management password or Gmail OAuth configuration is needed for this proposed transport. Copy configuration into the private production environment when enabling it. A mailbox password may also permit IMAP access; it must remain outside agent context even though the initial tool only sends.
 
+### Optional management API access
+
+The operator supplied `CAMP_MX_API_KEY` for account queries and customization. MXroute's management API requires three headers: `X-API-Key`, `X-Username` (DirectAdmin username), and `X-Server` (server shown on the API Keys page). Map these from `CAMP_MX_API_KEY`, `CAMP_MX_USERNAME`, and `CAMP_MX_SERVER` respectively. The latter two variables were absent when checked on September 12; management authentication is not yet verified. [Official API specification](https://api.mxroute.com/openapi.yaml).
+
+The management API supports mailbox/forwarder administration, quota queries, spam settings and read-only DNS information. It does not replace the mailbox password for SMTP or IMAP. Keep management credentials out of camp agent context; begin with read-only queries and scope any later customization to an explicit operator request. Receiving mail uses `shadow.mxrouting.net:993` with TLS; sending uses `shadow.mxrouting.net:465` with TLS, as supplied by the operator.
+
+The operator subsequently updated `CAMP_EMAIL_SENDER` to `camp@yamnaya.tv`, verified in `.env.camps`. `CAMP_SMTP_USERNAME` remains `mailperi@yamnaya.tv`; the envelope/header sender and authenticated mailbox are separate settings. Existence of the new address as a mailbox or forwarder and sending from it remain unverified pending management access. The earlier confirmed Gmail delivery was from the old sender. No additional message was sent during this configuration check.
+
 ## Dependency-ordered implementation
 
 1. Generalize the current Gmail-specific outbound schema, API and UI to email with a server-selected transport. Migrate existing drafts and bind approval to transport, sender, recipient, exact content and publication version. Invalidate approval when any bound value changes.
