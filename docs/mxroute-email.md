@@ -53,3 +53,9 @@ The public DNS check found registrar forwarding MX records, an SPF record author
 - To receive replies at MXroute, replace forwarding MX records with the exact records supplied by its control panel, after recreating any needed mailboxes/aliases there. Existing MX records currently route replies to the registrar's forwarding service. [MX setup](https://docs.mxroute.com/docs/quick-setup.html).
 
 DNS was inspected but not modified. The credentials remain in `.env.camps`; the application still requires the SMTP connector and durable sending controls described above. This setup test does not establish production camp email readiness.
+
+### September 12 DNS recheck
+
+The operator reported that the first test did not arrive and that they had corrected DNS. Public lookups now return `shadow.mxrouting.net` (priority 10) and `shadow-relay.mxrouting.net` (20), a single SPF record `v=spf1 include:mxroute.com -all`, a valid 2048-bit RSA public key at `x._domainkey`, and DMARC `v=DMARC1; p=none;`. Both MX hostnames resolve. This verifies published configuration; it does not verify that a delivered message carries a matching DKIM signature.
+
+One fresh message, `Yamnaya MXroute DNS retest - September 12`, was accepted at 17:22 UTC with SMTP 250. Its independent receipt is `runtime/mxroute-dns-retest-2026-09-12.json`. Certificate verification and mailbox authentication passed again. A bounded, read-only IMAP check of recent delivery-status senders in INBOX found no bounce matching the earlier test; the earlier non-delivery remains unexplained. The operator confirmed receipt of the fresh test in the Gmail inbox; that confirmation is recorded in the local receipt. Received SPF/DKIM/DMARC authentication headers were not inspected. No further messages or automated campaign were started.
