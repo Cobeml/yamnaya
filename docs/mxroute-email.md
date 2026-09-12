@@ -37,6 +37,8 @@ The management API supports mailbox/forwarder administration, quota queries, spa
 
 The operator subsequently updated `CAMP_EMAIL_SENDER` to `camp@yamnaya.tv`, verified in `.env.camps`. `CAMP_SMTP_USERNAME` remains `mailperi@yamnaya.tv`; the envelope/header sender and authenticated mailbox are separate settings. Existence of the new address as a mailbox or forwarder and sending from it remain unverified pending management access. The earlier confirmed Gmail delivery was from the old sender. No additional message was sent during this configuration check.
 
+After the operator supplied `CAMP_MX_USERNAME` and `CAMP_MX_SERVER`, read-only management requests succeeded (HTTP 200). `camp@yamnaya.tv` exists as a non-suspended mailbox; the API reports a daily sending limit of 100 and zero messages sent at the time of the check. It has no matching forwarding rule. Published MX records match the panel, and the published DKIM public key matches the panel's 2048-bit RSA key after normalizing TXT formatting. Results are saved privately in `runtime/mxroute-management-check.json`. No account setting was changed or email sent. The SMTP login still uses the previously tested mailbox; SMTP authentication and delivery specifically using the new mailbox remain unverified. The proposed application's five-message daily cap is still pending implementation and is separate from this provider limit.
+
 ## Dependency-ordered implementation
 
 1. Generalize the current Gmail-specific outbound schema, API and UI to email with a server-selected transport. Migrate existing drafts and bind approval to transport, sender, recipient, exact content and publication version. Invalidate approval when any bound value changes.
