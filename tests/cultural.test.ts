@@ -90,6 +90,54 @@ it("checks passages, secondary provenance and role authority", () => {
     ),
   ).toThrow("distinct");
 });
+it("accepts the expanded analytical sources without relaxing evidence or hostname checks", () => {
+  const finder = {
+    kind: "agent" as const,
+    id: "finder",
+    agentId: "finder",
+    campId: "camp-test",
+  };
+  for (const host of [
+    "jfiresearch.org",
+    "www.jfiresearch.org",
+    "phenomenalworld.org",
+    "www.phenomenalworld.org",
+    "jamestown.org",
+    "palladiummag.com",
+  ]) {
+    const c = fixture();
+    c.evidence[0].url = `https://${host}/analysis/example`;
+    expect(() =>
+      addSourceDossier(
+        c,
+        { ...dossier, kind: "secondary", quote: "An invented quotation" },
+        finder,
+        now,
+      ),
+    ).toThrow("quoted passage");
+    const saved = addSourceDossier(
+      c,
+      { ...dossier, kind: "secondary" },
+      finder,
+      now,
+    );
+    expect(saved.kind).toBe("secondary");
+    expect(saved.evidenceId).toBe(c.evidence[0].id);
+  }
+  for (const host of [
+    "jfiresearch.org.example.com",
+    "fakephenomenalworld.org",
+    "phenomenalworld.org@evil.example",
+    "archive.example",
+  ]) {
+    const c = fixture();
+    c.evidence[0].url = `https://${host}/analysis/example`;
+    expect(() =>
+      addSourceDossier(c, { ...dossier, kind: "secondary" }, finder, now),
+    ).toThrow("secondary sources are limited");
+    expect(c.cultural?.sources).toHaveLength(0);
+  }
+});
 it("queues only ready dependencies and keeps explicit input waits asleep", () => {
   const c = fixture();
   c.status = "running";

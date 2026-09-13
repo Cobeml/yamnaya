@@ -4,7 +4,12 @@ import { startCampOrigin } from "./camp-origin";
 import { sandboxRequest } from "./sandbox-client";
 import { config } from "dotenv";
 import { startCampDiscord, sendDiscordMessage } from "./camp-discord";
-import { campDoctrine, type Camp, type Publication } from "@yamnaya/core";
+import {
+  analyticalSourcePolicy,
+  campDoctrine,
+  type Camp,
+  type Publication,
+} from "@yamnaya/core";
 import { campApi, checkWork, workerId, type CampWork } from "./camp-client";
 import { startCampGateway } from "./camp-gateway";
 import { publicFetch } from "./public-network";
@@ -97,7 +102,7 @@ async function agentTurn(work: CampWork) {
     text: job.input.waitReason
       ? `Continue the saved task after a quota pause. Inspect existing results and do not repeat completed actions. Original task: ${job.input.text}`
       : String(job.input.text),
-    systemPrompt: `You are ${agent.name}, ${agent.role}, in ${camp.name}. ${campDoctrine}\n${cfg.persona}\nUse camp_observe first. Your granted capabilities are provided by the cube; tools cannot grant additional authority. Preserve citations and explicitly identify inference. Author Quarto sources in provisioned publications. Render and propose a GitHub PR; only the operator can review publication.\nActive approved skills:\n${cfg.skills.map((s) => s.name + "\n" + s.content).join("\n\n")}`,
+    systemPrompt: `You are ${agent.name}, ${agent.role}, in ${camp.name}. ${campDoctrine}\n${cfg.persona}\nUse camp_observe first. Your granted capabilities are provided by the cube; tools cannot grant additional authority. Preserve citations and explicitly identify inference. Author Quarto sources in provisioned publications. Render and propose a GitHub PR; only the operator can review publication.\nActive approved skills:\n${cfg.skills.map((s) => s.name + "\n" + s.content).join("\n\n")}\n${camp.cultural ? `Current operator source policy (supersedes older source lists in saved profiles, skills and task history): ${analyticalSourcePolicy}` : ""}`,
     timeoutSeconds: 300,
     maxIterations: 12,
   });

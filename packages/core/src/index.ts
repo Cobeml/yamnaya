@@ -3,6 +3,7 @@ export * from "./camps";
 export * from "./media";
 
 export * from "./cultural";
+export * from "./research-policy";
 export * from "./quota";
 export * from "./discord";
 export * from "./launch";

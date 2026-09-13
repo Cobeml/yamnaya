@@ -1,4 +1,9 @@
 import { seedCulturalExamples } from "./cultural-examples";
+import {
+  analyticalSourceHosts,
+  analyticalSourceNames,
+  analyticalSourcePolicy,
+} from "./research-policy";
 import { z } from "zod";
 import { DomainError } from "./errors";
 import {
@@ -148,8 +153,7 @@ export const culturalFocus = {
   },
 };
 const procedures: Record<CulturalRole, string> = {
-  finder:
-    "1. Find original texts and verified editions; contemporary secondary analysis is restricted to jamestown.org and palladiummag.com.\n2. Fetch evidence and retain exact passages, authorship, edition, original date, language, translation and locators.\n3. Register source dossiers with limitations. A search snippet is not evidence; a primary text's claims are not established facts.\n4. Handoff at least two documented sources. If blocked, report what is missing and wait.",
+  finder: `1. Find original texts and verified editions. ${analyticalSourcePolicy}\n2. Fetch evidence and retain exact passages, authorship, edition, original date, language, translation and locators.\n3. Register source dossiers with limitations. A search snippet is not evidence; a primary text's claims are not established facts.\n4. Handoff at least two documented sources. If blocked, report what is missing and wait.`,
   referencer:
     "1. Read the source dossiers and retrieve only relevant passages.\n2. Trace transmission, analogy and contradiction as distinct relationships.\n3. Register at least one connection between different sources, with supporting passages and a counterexample or rival explanation.\n4. Propose an original thesis while clearly identifying inference. Do not convert an analogy into a claim of historical influence.",
   writer:
@@ -279,10 +283,10 @@ export function addSourceDossier(
   const hostname = new URL(evidence.url).hostname.replace(/^www\./, "");
   if (
     input.kind === "secondary" &&
-    !["jamestown.org", "palladiummag.com"].includes(hostname)
+    !analyticalSourceHosts.some((allowed) => allowed === hostname)
   )
     throw new DomainError(
-      "Contemporary secondary sources are limited to Jamestown and Palladium",
+      `Contemporary secondary sources are limited to ${analyticalSourceNames}`,
     );
   if (
     s.sources.some(

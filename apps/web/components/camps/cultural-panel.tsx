@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
-import type { Camp, EvaluationExample } from "@yamnaya/core";
+import {
+  analyticalSourceNames,
+  type Camp,
+  type EvaluationExample,
+} from "@yamnaya/core";
 import type { BoardThread } from "../../lib/camp-boards";
 type Fields = Record<string, string>;
 type Spec = {
@@ -282,7 +286,7 @@ export default function CulturalPanel({
                   { value: "primary", label: "Primary source" },
                   {
                     value: "secondary",
-                    label: "Jamestown / Palladium analysis",
+                    label: `${analyticalSourceNames} analysis`,
                   },
                 ],
               },
