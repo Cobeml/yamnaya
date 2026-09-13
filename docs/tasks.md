@@ -1,5 +1,9 @@
 # Camp implementation and verification
 
+### Astra usage attribution audit — September 13, 2026
+
+Audited the production first-issue ledger after the operator reported only $0.41 in today's provider dashboard. The $48.120893 local total consists of 29 cumulative maximum reservations, with 27 token receipts reporting 368,645 input and 4,875 output tokens. No duplicate request IDs or imported earlier-day charges were found. The guard never settles reservations after receipt, and the adapter discards cache billing details. Both read-only OpenAI billing/usage endpoint checks returned 403; actual billed spend remains unverified. Corrected the console wording for both providers and recorded the evidence and proposed settlement approach in [the audit](model-usage-audit.md). No budget or research state changed. Targeted ESLint and whitespace checks pass; this change only alters wording and documentation.
+
 Yamnaya provides general-purpose and research camps with one mission ontology: observe, contextualize, propose, rehearse, authorize, maneuver and verify.
 
 ## Implemented

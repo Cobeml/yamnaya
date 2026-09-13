@@ -385,36 +385,41 @@ function LaunchBudget() {
   return (
     <div className="camp-row">
       <div>
-        <strong>First issue model budget</strong>
+        <strong>First issue model reservations</strong>
         {error && <p>{error}</p>}
         {budget ? (
           <>
             <p>
               Research:{" "}
               {budget.fallback
-                ? "Gemini 3.8 Flash (Astra allowance reserved)"
+                ? "Gemini 3.8 Flash (Astra reservation guard reached)"
                 : "GPT-6 Astra"}
               . Writing and marketing: Gemini 3.8 Flash.
             </p>
             <p>
-              ${budget.reservedUsd.toFixed(2)} reserved of $50 across both
-              camps; ${budget.remainingUsd.toFixed(2)} remaining.
+              Astra: ${budget.reservedUsd.toFixed(2)} in cumulative maximum
+              reservations against the $50 application limit across both camps;
+              ${budget.remainingUsd.toFixed(2)} available for new reservations.
             </p>
             {budget.gemini && (
               <p>
                 Gemini ({budget.gemini.month}): $
-                {budget.gemini.reservedUsd.toFixed(2)} reserved of $
+                {budget.gemini.reservedUsd.toFixed(2)} in cumulative maximum
+                reservations against the $
                 {budget.gemini.limitUsd.toFixed(2)}; $
-                {budget.gemini.remainingUsd.toFixed(2)} remaining. A request
-                waits if its maximum reservation exceeds the remainder.
+                {budget.gemini.remainingUsd.toFixed(2)} available for new
+                reservations. A request waits if its maximum reservation
+                exceeds the remainder.
               </p>
             )}
             <p className="camp-muted">
               OpenAI reported {budget.reportedInputTokens.toLocaleString()}{" "}
               input / {budget.reportedOutputTokens.toLocaleString()} output
               tokens. {budget.unreportedRequests} requests have no usage
-              receipt. Reservations remain charged against the allowance; this
-              is not an account invoice.
+              receipt. Billed spend is not connected. These holds use maximum
+              request sizes and are not reduced after completion or failure.
+              Reaching this guard does not mean the provider spending limit
+              has been reached.
             </p>
           </>
         ) : (
