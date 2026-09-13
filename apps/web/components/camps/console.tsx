@@ -57,7 +57,7 @@ type Summary = Pick<Camp, "id" | "name" | "domain" | "status" | "mode">;
 type Panel =
   "research" | "cube" | "agents" | "publications" | "activity" | "settings";
 async function api(route = "", data?: unknown) {
-  const response = await fetch("/api/camps/" + route, {
+  const response = await fetch("/api/camps" + (route ? "/" + route : ""), {
     method: data === undefined ? "GET" : "POST",
     headers: {
       "Content-Type": "application/json",
@@ -491,9 +491,19 @@ export default function CampConsole() {
     }
   }, []);
   useEffect(() => {
-    void refresh();
-    const timer = setInterval(() => void refresh(), 3000);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function poll() {
+      await refresh();
+      // Starting another poll while this one is still reading invalidates its
+      // sequence. On a slow browser that can discard every completed update.
+      if (!stopped) timer = setTimeout(() => void poll(), 3000);
+    }
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [refresh, id]);
   async function act(fn: () => Promise<unknown>) {
     setBusy(true);

@@ -83,8 +83,13 @@ The production console is https://yamnaya.vercel.app. Its API and separate previ
 docker compose --env-file .env.camps.production -f docker-compose.yml -f docker-compose.local-production.yml up -d --build
 pnpm exec tsx scripts/camps/provision-pilots.ts
 pnpm exec tsx scripts/camps/deploy-env.ts
-vercel deploy --prod --yes
 ```
+
+The repository is connected to Vercel's Git integration: push the verified commit to `master` and inspect its automatic deployment. Do not also run a manual deployment of the same commit. `vercel deploy --prod --yes` is a fallback when Git deployment is unavailable, not a second step after every push. The duplicate builds consume unnecessary Hobby allowance.
+
+GitHub's browser workflow creates its own Docker stack and tests `http://localhost:3110`; it does not use Vercel. For this machine's existing production stack, use `CAMP_ENV_FILE=.env.camps.production pnpm test:e2e`. Plain `pnpm test:e2e` loads `.env.camps`, whose local origin does not match the production server's configured browser origin. Do not weaken the origin check to make that mismatch pass.
+
+For hosting alternatives and the September 13 diagnosis, see [hosting options](hosting-options.md).
 
 The provisioning script uses `.env.camps` for the local PostgreSQL connection and the production operator identity. It preserves existing pilots and only adds missing research grants. The tunnel manifest currently identifies this host's dedicated tunnel; another installation must create its own tunnel/hostname and private credentials. Secrets and runtime data are ignored by Git.
 

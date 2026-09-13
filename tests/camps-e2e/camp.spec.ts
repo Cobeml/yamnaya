@@ -52,12 +52,27 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     page.getByRole("button", { name: "Disconnect Discord", exact: true }),
   ).toBeVisible();
+  // Make the sequential session/list/revision/camp read exceed the polling
+  // interval. The mutation must still reach the screen under slow responses.
+  const campApi = /\/api\/camps(?:\/|$)/;
+  await page.route(campApi, async (route) => {
+    if (route.request().method() === "GET")
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+    await route.continue();
+  });
+  const disconnected = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/settings") &&
+      response.request().method() === "POST",
+  );
   await page
     .getByRole("button", { name: "Disconnect Discord", exact: true })
     .click();
+  expect((await disconnected).ok()).toBeTruthy();
   await expect(
     page.getByRole("button", { name: "Disconnect Discord", exact: true }),
   ).not.toBeVisible();
+  await page.unroute(campApi);
   await page.getByRole("button", { name: "Cube", exact: true }).click();
   await page.getByRole("button", { name: "Start camp", exact: true }).click();
   await expect(
