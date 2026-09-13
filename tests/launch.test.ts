@@ -105,7 +105,21 @@ it("bounds priced requests and strips attempts to select premium or unmetered ef
   expect(astra.service_tier).toBe("default");
   expect(astra.max_completion_tokens).toBeLessThan(100000);
   const fallback = culturalModelRequest(raw, flashModel, "high");
-  expect(fallback.messages).toEqual(messages); // tool results survive provider switch
+  expect(fallback.messages[2]).toEqual(messages[2]); // tool results survive provider switch
+  expect(fallback.messages[1].tool_calls[0].function).toEqual(
+    messages[1].tool_calls![0].function,
+  );
+  expect(
+    fallback.messages[1].tool_calls[0].extra_content.google.thought_signature,
+  ).toBe("skip_thought_signature_validator");
+  const signed = structuredClone(raw);
+  Object.assign(signed.messages[1].tool_calls![0], {
+    extra_content: { google: { thought_signature: "provider-signature" } },
+  });
+  expect(
+    culturalModelRequest(signed, flashModel, "high").messages[1].tool_calls[0]
+      .extra_content.google.thought_signature,
+  ).toBe("provider-signature");
   expect(fallback).not.toHaveProperty("service_tier");
   expect(() =>
     culturalModelRequest(

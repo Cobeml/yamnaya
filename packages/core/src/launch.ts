@@ -66,9 +66,30 @@ export function culturalModelRequest(
       ))
   )
     throw new DomainError("Only camp function tools are allowed");
+  const messages = structuredClone(raw.messages);
+  if (model === flashModel) {
+    for (const message of messages) {
+      const calls = message.tool_calls;
+      if (
+        Array.isArray(calls) &&
+        calls.length &&
+        !calls.some((c) => c.extra_content?.google?.thought_signature)
+      ) {
+        // Google's documented marker for importing a different model's tool
+        // trace. Preserve genuine Gemini signatures and parallel call ordering.
+        calls[0].extra_content = {
+          ...calls[0].extra_content,
+          google: {
+            ...calls[0].extra_content?.google,
+            thought_signature: "skip_thought_signature_validator",
+          },
+        };
+      }
+    }
+  }
   return {
     model,
-    messages: raw.messages,
+    messages,
     ...(raw.tools ? { tools: raw.tools } : {}),
     ...(raw.tool_choice ? { tool_choice: raw.tool_choice } : {}),
     stream: raw.stream === true,

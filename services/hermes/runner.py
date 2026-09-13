@@ -38,7 +38,7 @@ def run(payload):
             except Exception:
                 detail = "Cube request denied"
             raise RuntimeError(detail) from None
-        return value.get("result", value) if isinstance(value, dict) else value
+        return value["result"] if data is not None and isinstance(value, dict) and "result" in value and "revision" in value else value
 
     def external(args):
         job = api("tools", args)

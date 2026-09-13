@@ -18,9 +18,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass
     def do_GET(self):
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
-        self.wfile.write(json.dumps({"id": "camp-test", "status": "running", "mission": "Contract smoke test"}).encode())
+        value = {"id": "job-fixture", "status": "done", "result": {"evidenceId": "retained-fixture"}} if "/jobs/" in self.path else {"id": "camp-test", "status": "running", "mission": "Contract smoke test"}
+        self.wfile.write(json.dumps(value).encode())
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path.endswith("/tools"):
+            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
+            self.wfile.write(json.dumps({"result": {"id": "job-fixture", "status": "queued"}, "revision": 1}).encode()); return
         if not data.get("tools"):
             self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
             self.wfile.write(json.dumps({"id":"probe", "object":"chat.completion", "choices":[{"index":0,"message":{"role":"assistant","content":"Ready"},"finish_reason":"stop"}]}).encode())
@@ -33,7 +37,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if used and pause_after_tool:
             self.send_response(429); self.send_header("Content-Type", "application/json"); self.send_header("X-Camp-Retry-At", "2099-01-01T00:00:00.000Z"); self.end_headers()
             self.wfile.write(json.dumps({"error":{"message":"Quota fixture", "type":"camp_quota"}}).encode()); return
-        message = {"role": "assistant", "content": "Contract test complete."} if used else {"role": "assistant", "content": None, "tool_calls": [{"id": "call_observe", "type": "function", "function": {"name": requested_tool, "arguments": "{}"}}]}
+        message = {"role": "assistant", "content": "Contract test complete."} if used else {"role": "assistant", "content": None, "tool_calls": [{"id": "call_observe", "type": "function", "function": {"name": requested_tool, "arguments": json.dumps({"capability":"research.fetch", "arguments":{"url":"https://example.org"}}) if requested_tool == "camp_tool" else "{}"}}]}
         response = {"id": "test", "object": "chat.completion", "model": "fixture-model", "created": 0, "choices": [{"index": 0, "message": message, "finish_reason": "stop" if used else "tool_calls"}], "usage": {"prompt_tokens": 40, "completion_tokens": 10, "total_tokens": 50}}
         if data.get("stream"):
             self.send_response(200); self.send_header("Content-Type", "text/event-stream"); self.end_headers()
@@ -70,6 +74,13 @@ with tempfile.TemporaryDirectory(prefix="hermes-contract-") as home:
     assert events[-1]["kind"] == "completed", events
     assert (Path(home) / "history-ada-v1.json").exists()
     assert len(calls) == 2, len(calls)
+    requested_tool = "camp_tool"
+    payload["configurationId"] = "ada-tool-v1"
+    external = subprocess.run([str(source / ".venv/bin/python"), str(runner)], input=json.dumps(payload), text=True, capture_output=True, env=env, cwd=source, timeout=60)
+    assert external.returncode == 0, external.stdout[-1000:]
+    tool_history = json.loads((Path(home) / "history-ada-tool-v1.json").read_text())
+    assert any(m.get("role") == "tool" and "retained-fixture" in str(m.get("content")) for m in tool_history), tool_history
+    print("PASS: completed external job preserved status and returned its verified result.")
     requested_tool = "delegate_task"
     payload["configurationId"] = "ada-v2"
     payload["invocationId"] = "test-forbidden-invocation"
