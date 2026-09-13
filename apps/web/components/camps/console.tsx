@@ -354,6 +354,12 @@ function LaunchBudget() {
     reportedInputTokens: number;
     reportedOutputTokens: number;
     unreportedRequests: number;
+    gemini?: {
+      month: string;
+      reservedUsd: number;
+      limitUsd: number;
+      remainingUsd: number;
+    };
   } | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -392,9 +398,17 @@ function LaunchBudget() {
             </p>
             <p>
               ${budget.reservedUsd.toFixed(2)} reserved of $50 across both
-              camps; ${budget.remainingUsd.toFixed(2)} remaining. Gemini has a
-              separate $10 monthly cap.
+              camps; ${budget.remainingUsd.toFixed(2)} remaining.
             </p>
+            {budget.gemini && (
+              <p>
+                Gemini ({budget.gemini.month}): $
+                {budget.gemini.reservedUsd.toFixed(2)} reserved of $
+                {budget.gemini.limitUsd.toFixed(2)}; $
+                {budget.gemini.remainingUsd.toFixed(2)} remaining. A request
+                waits if its maximum reservation exceeds the remainder.
+              </p>
+            )}
             <p className="camp-muted">
               OpenAI reported {budget.reportedInputTokens.toLocaleString()}{" "}
               input / {budget.reportedOutputTokens.toLocaleString()} output
