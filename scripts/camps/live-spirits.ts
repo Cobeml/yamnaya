@@ -41,12 +41,13 @@ try {
       );
     }
   } else if (mode === "smoke") {
-    let camp = (await listCamps()).find(
-      (c) => c.name === "Spirits provider verification",
+    const previous = (await listCamps()).filter((c) =>
+      c.name.startsWith("Spirits provider verification"),
     );
+    let camp = previous.find((c) => c.status !== "archived");
     camp ??= await insertCamp(
       {
-        name: "Spirits provider verification",
+        name: `Spirits provider verification ${previous.length + 1}`,
         domain: "research",
         focus: "america",
         mode: "live",
@@ -123,7 +124,10 @@ try {
     if (!["america", "china"].includes(focus))
       throw new Error("Specify america or china");
     const smoke = (await listCamps()).find(
-      (c) => c.name === "Spirits provider verification",
+      (c) =>
+        c.name.startsWith("Spirits provider verification") &&
+        c.jobs.filter((j) => j.kind === "agent" && j.status === "done")
+          .length === 2,
     );
     if (
       !smoke ||
@@ -162,15 +166,13 @@ try {
           role: t.role,
           status: t.status,
         })),
-        jobs: camp.jobs
-          .slice(-6)
-          .map((j) => ({
-            id: j.id,
-            kind: j.kind,
-            agent: j.agentId,
-            status: j.status,
-            receipt: j.receipt,
-          })),
+        jobs: camp.jobs.slice(-6).map((j) => ({
+          id: j.id,
+          kind: j.kind,
+          agent: j.agentId,
+          status: j.status,
+          receipt: j.receipt,
+        })),
         publications: camp.publications.map((p) => ({
           id: p.id,
           version: p.version,

@@ -15,6 +15,11 @@ import {
   recordAstraUsage,
 } from "../../services/worker/camp-launch";
 import { campDatabase } from "../../apps/web/lib/camp-store";
+import {
+  adaptAstraResponse,
+  prepareAstraRequest,
+} from "../../services/worker/camp-astra";
+import { culturalModelRequest } from "@yamnaya/core";
 
 // Real transaction test in a temporary database; never touches the launch ledger.
 const local = parse(await readFile(".env.camps"));
@@ -29,6 +34,50 @@ try {
   process.env.CAMP_DATABASE_URL = url.toString();
   const db = campDatabase();
   await db`CREATE TABLE camp_quota(id text PRIMARY KEY,state jsonb NOT NULL)`;
+  await db`CREATE TABLE camps(id text PRIMARY KEY)`;
+  await db`INSERT INTO camps(id) VALUES('america'),('china')`;
+  await db.unsafe(await readFile("migrations/0004_model_context.sql", "utf8"));
+  const response = {
+    id: "resp-fixture",
+    status: "completed",
+    output: [
+      {
+        type: "reasoning",
+        id: "rs-fixture",
+        encrypted_content: "opaque-fixture",
+        summary: [],
+      },
+      {
+        type: "function_call",
+        call_id: "call-fixture",
+        name: "camp_observe",
+        arguments: "{}",
+      },
+    ],
+  };
+  const chatResponse = await adaptAstraResponse(
+    "america",
+    "finder",
+    new Response(JSON.stringify(response)),
+    false,
+  );
+  const message = (await chatResponse.json()).choices[0].message;
+  const chat = culturalModelRequest(
+    {
+      messages: [
+        message,
+        { role: "tool", tool_call_id: "call-fixture", content: "retained" },
+      ],
+    },
+    astraModel,
+    "high",
+  );
+  const own = await prepareAstraRequest("america", "finder", chat);
+  const otherCamp = await prepareAstraRequest("china", "finder", chat);
+  const otherAgent = await prepareAstraRequest("america", "writer", chat);
+  assert(own.input.some((i) => i.type === "reasoning"));
+  assert(!otherCamp.input.some((i) => i.type === "reasoning"));
+  assert(!otherAgent.input.some((i) => i.type === "reasoning"));
   const results = await Promise.all(
     Array.from({ length: 60 }, (_, i) =>
       reserveAstra(i % 2 ? "china" : "america", `job-${i}`, 80000),
@@ -68,6 +117,9 @@ try {
   }
   console.log(
     `Verified 60 concurrent reservations, one durable fallback, ${astra.length} deduplicated usage receipts, and fresh-connection persistence.`,
+  );
+  console.log(
+    "Verified local Responses reasoning continuity and isolation between camps and agents.",
   );
 } finally {
   if (created) {

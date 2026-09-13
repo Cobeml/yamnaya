@@ -15,6 +15,7 @@ try {
       "0001_camps.sql",
       "0002_artifacts.sql",
       "0003_work_queue.sql",
+      "0004_model_context.sql",
     ])
       await tx.unsafe(await readFile(`migrations/${file}`, "utf8"));
   });

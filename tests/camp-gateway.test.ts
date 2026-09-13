@@ -19,6 +19,27 @@ vi.mock("../services/worker/camp-quota", () => ({
   reserveGoogleQuota: mocks.google,
   releaseGoogleQuota: mocks.release,
 }));
+vi.mock("../services/worker/camp-astra", async () => {
+  const core = await import("../packages/core/src");
+  return {
+    prepareAstraRequest: async (
+      _camp: string,
+      _agent: string,
+      chat: ReturnType<typeof core.culturalModelRequest>,
+    ) => core.astraResponsesRequest(chat),
+    adaptAstraResponse: async (
+      _camp: string,
+      _agent: string,
+      response: Response,
+      stream: boolean,
+    ) => {
+      const adapted = core.astraChatResponse(await response.json(), stream);
+      return new Response(adapted.body, {
+        headers: { "content-type": adapted.contentType },
+      });
+    },
+  };
+});
 import { startCampGateway } from "../services/worker/camp-gateway";
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -45,12 +66,25 @@ it("routes authenticated research through Astra then Flash with usage receipts a
   mocks.usage.mockResolvedValue(undefined);
   mocks.release.mockResolvedValue(undefined);
   const realFetch = globalThis.fetch;
-  const upstream = vi.fn(
-    async () =>
-      new Response(
-        'data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":8}}\n\ndata: [DONE]\n\n',
-        { headers: { "content-type": "text/event-stream" } },
-      ),
+  const upstream = vi.fn(async (destination?: string) =>
+    destination?.endsWith("/responses")
+      ? new Response(
+          JSON.stringify({
+            id: "resp_fixture",
+            status: "completed",
+            output: [
+              {
+                type: "message",
+                content: [{ type: "output_text", text: "Ready" }],
+              },
+            ],
+            usage: { input_tokens: 12, output_tokens: 8 },
+          }),
+        )
+      : new Response(
+          'data: {"choices":[],"usage":{"prompt_tokens":12,"completion_tokens":8}}\n\ndata: [DONE]\n\n',
+          { headers: { "content-type": "text/event-stream" } },
+        ),
   );
   vi.stubGlobal("fetch", upstream);
   const server = startCampGateway();
@@ -95,7 +129,15 @@ it("routes authenticated research through Astra then Flash with usage receipts a
       );
       const body = JSON.parse(String(options.body));
       expect(body.model).toBe(model);
-      expect(body.messages).toEqual(messages);
+      if (model === astraModel) {
+        expect(destination).toMatch(/\/responses$/);
+        expect(body.reasoning).toEqual({ effort: "high" });
+        expect(body.input.at(-1)).toEqual({
+          type: "function_call_output",
+          call_id: "done",
+          output: "Existing evidence",
+        });
+      } else expect(body.messages).toEqual(messages);
       expect(body.n).toBeUndefined();
     }
     await vi.waitFor(() =>
@@ -120,6 +162,73 @@ it("routes authenticated research through Astra then Flash with usage receipts a
     expect(missing.status).toBe(503);
     await missing.text();
     expect(mocks.reserve).toHaveBeenCalledTimes(before);
+    vi.stubEnv("CAMP_MODEL_API_KEY", "openai-fixture");
+    upstream.mockImplementationOnce(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(
+                new TextEncoder().encode(
+                  'data: {"choices":[{"delta":{"content":"first"}}]}\n\n',
+                ),
+              );
+              setTimeout(() => {
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    'data: {"usage":{"prompt_tokens":666,"completion_tokens":7}}\n\ndata: [DONE]\n\n',
+                  ),
+                );
+                controller.close();
+              }, 40);
+            },
+          }),
+          { headers: { "content-type": "text/event-stream" } },
+        ),
+    );
+    const interrupted = await realFetch(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messages, stream: true }),
+    });
+    const reader = interrupted.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await vi.waitFor(() =>
+      expect(mocks.api).toHaveBeenCalledWith(
+        "america/worker/model-result",
+        expect.objectContaining({
+          usage: { inputTokens: 666, outputTokens: 7 },
+        }),
+      ),
+    );
+    expect(mocks.release).toHaveBeenCalledWith("google");
+    upstream.mockImplementationOnce(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "unsupported_parameter",
+              param: "bad_field",
+              message: "private diagnostic fixture",
+            },
+          }),
+          { status: 400 },
+        ),
+    );
+    const rejected = await realFetch(url, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messages }),
+    });
+    expect(rejected.status).toBe(400);
+    expect(await rejected.text()).not.toContain("private diagnostic fixture");
+    expect(mocks.api).toHaveBeenCalledWith(
+      "america/worker/model-error",
+      expect.objectContaining({
+        detail: "Model provider HTTP 400: unsupported_parameter (bad_field)",
+      }),
+    );
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

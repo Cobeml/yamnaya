@@ -859,6 +859,29 @@ export async function POST(req: NextRequest, context: Context) {
           );
           return { ok: true };
         }
+        if (operation === "worker/model-error") {
+          requireWorker(req);
+          const job = camp.jobs.find((j) => j.id === input.jobId);
+          const number = z
+            .number()
+            .int()
+            .min(1)
+            .max(24)
+            .parse(input.requestNumber);
+          if (!job || number > Number(job.input.modelRequests ?? 0))
+            throw new DomainError("Model reservation missing");
+          const detail = z.string().max(300).parse(input.detail);
+          const errors = (job.input.modelErrors ?? {}) as Record<
+            string,
+            string
+          >;
+          if (!errors[String(number)]) {
+            errors[String(number)] = detail;
+            job.input.modelErrors = errors;
+            campEvent(camp, "model.error", detail, job.agentId, now, [job.id]);
+          }
+          return { ok: true };
+        }
         if (operation === "worker/model-result") {
           requireWorker(req);
           const job = camp.jobs.find((j) => j.id === input.jobId);

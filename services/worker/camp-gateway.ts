@@ -1,3 +1,4 @@
+import { prepareAstraRequest, adaptAstraResponse } from "./camp-astra";
 import { reserveGoogleQuota, releaseGoogleQuota } from "./camp-quota";
 import http from "node:http";
 import {
@@ -7,7 +8,7 @@ import {
   culturalModelRequest,
 } from "@yamnaya/core";
 import { reserveAstra, recordAstraUsage } from "./camp-launch";
-import { Readable, Transform } from "node:stream";
+import { Readable } from "node:stream";
 import { verifyCampToken } from "../../apps/web/lib/camp-auth";
 import { campApi } from "./camp-client";
 import { loadArtifact, validPreviewToken } from "./camp-artifacts";
@@ -109,6 +110,8 @@ export function startCampGateway() {
           },
         );
         let google = reservation.cultural === true;
+        let astraRequest:
+          Awaited<ReturnType<typeof prepareAstraRequest>> | undefined;
         if (reservation.cultural) {
           if (!url.pathname.endsWith("chat/completions"))
             throw new Error("Cultural Hermes calls require Chat Completions");
@@ -137,10 +140,15 @@ export function startCampGateway() {
               astraModel,
               reservation.profile?.reasoning,
             );
+            astraRequest = await prepareAstraRequest(
+              String(token.campId),
+              String(token.agentId),
+              prepared,
+            );
             const budget = await reserveAstra(
               String(token.campId),
               String(token.jobId),
-              Buffer.byteLength(JSON.stringify(prepared), "utf8"),
+              Buffer.byteLength(JSON.stringify(astraRequest), "utf8"),
             );
             model = budget.model;
             if (model === astraModel) astraId = budget.id;
@@ -197,15 +205,15 @@ export function startCampGateway() {
             agentId: token.agentId,
           })),
         };
-        const upstream = await fetch(
-          `${base}/${url.pathname.endsWith("responses") ? "responses" : "chat/completions"}`,
+        let upstream = await fetch(
+          `${base}/${astraId || url.pathname.endsWith("responses") ? "responses" : "chat/completions"}`,
           {
             method: "POST",
             headers: {
               Authorization: `Bearer ${key}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(input),
+            body: JSON.stringify(astraId ? astraRequest : input),
             signal: AbortSignal.timeout(90000),
           },
         );
@@ -235,6 +243,19 @@ export function startCampGateway() {
           return;
         }
         if (!upstream.ok) {
+          const problem = await upstream.json().catch(() => ({}));
+          const safeField = (value: unknown) =>
+            typeof value === "string" &&
+            /^[a-zA-Z0-9_.[\]-]{1,100}$/.test(value)
+              ? value
+              : "unspecified";
+          const failure = `Model provider HTTP ${upstream.status}: ${safeField(problem.error?.code)} (${safeField(problem.error?.param)})`;
+          console.error(failure);
+          await campApi(`${token.campId}/worker/model-error`, {
+            jobId: token.jobId,
+            requestNumber: reservation.requestNumber,
+            detail: failure,
+          }).catch(() => {});
           if (quotaId) await releaseGoogleQuota(quotaId);
           quotaId = undefined;
           res.writeHead(upstream.status, {
@@ -250,6 +271,13 @@ export function startCampGateway() {
           );
           return;
         }
+        if (astraId)
+          upstream = await adaptAstraResponse(
+            String(token.campId),
+            String(token.agentId),
+            upstream,
+            input.stream === true,
+          );
         res.writeHead(200, {
           "Content-Type":
             upstream.headers.get("content-type") ?? "application/json",
@@ -257,62 +285,64 @@ export function startCampGateway() {
         });
         if (upstream.body) {
           let tail = "";
-          const meter = new Transform({
-            transform(chunk, _encoding, callback) {
+          let responseBytes = 0;
+          try {
+            // Always drain the bounded provider stream, even if Hermes closes its
+            // tool-call stream early. Usage and quota release cannot depend on
+            // downstream consuming the final SSE frame.
+            for await (const chunk of Readable.fromWeb(
+              upstream.body as never,
+            )) {
+              responseBytes += chunk.length;
+              if (responseBytes > 4_000_000)
+                throw new Error("Model response exceeds the bounded stream");
               tail = (tail + chunk.toString()).slice(-100000);
-              callback(null, chunk);
-            },
-          });
-          meter.on("end", () => {
-            if (quotaId) void releaseGoogleQuota(quotaId).catch(() => {});
-            let usage: Record<string, unknown> | undefined;
-            for (const line of tail.split("\n")) {
-              try {
-                const value = JSON.parse(
-                  line.startsWith("data: ") ? line.slice(6) : line,
-                );
-                if (value.usage || value.response?.usage)
-                  usage = value.usage ?? value.response.usage;
-              } catch {
-                /* Non-JSON SSE framing. */
-              }
+              if (!res.destroyed) res.write(chunk);
             }
-            if (astraId && usage)
-              void recordAstraUsage(astraId, {
+          } finally {
+            if (quotaId) await releaseGoogleQuota(quotaId);
+            quotaId = undefined;
+          }
+          let usage: Record<string, unknown> | undefined;
+          for (const line of tail.split("\n")) {
+            try {
+              const value = JSON.parse(
+                line.startsWith("data: ") ? line.slice(6) : line,
+              );
+              if (value.usage || value.response?.usage)
+                usage = value.usage ?? value.response.usage;
+            } catch {
+              /* Non-JSON SSE framing. */
+            }
+          }
+          const receipt = usage
+            ? {
                 inputTokens: Number(
                   usage.input_tokens ?? usage.prompt_tokens ?? 0,
                 ),
                 outputTokens: Number(
                   usage.output_tokens ?? usage.completion_tokens ?? 0,
                 ),
-              }).catch(() => {
-                console.error(
-                  "Astra usage receipt unavailable; reservation retained",
-                );
-              });
-            void campApi(token.campId + "/worker/model-result", {
-              model: input.model,
-              provider: google ? "google" : "openai",
-              jobId: token.jobId,
-              requestNumber: reservation.requestNumber,
-              usage: usage
-                ? {
-                    inputTokens: Number(
-                      usage.input_tokens ?? usage.prompt_tokens ?? 0,
-                    ),
-                    outputTokens: Number(
-                      usage.output_tokens ?? usage.completion_tokens ?? 0,
-                    ),
-                  }
-                : null,
-            }).catch(() => {});
+              }
+            : null;
+          if (astraId && receipt)
+            await recordAstraUsage(astraId, receipt).catch(() => {
+              console.error(
+                "Astra usage receipt unavailable; reservation retained",
+              );
+            });
+          await campApi(token.campId + "/worker/model-result", {
+            model: input.model,
+            provider: google ? "google" : "openai",
+            jobId: token.jobId,
+            requestNumber: reservation.requestNumber,
+            usage: receipt,
+          }).catch(() => {
+            console.error(
+              "Model usage receipt unavailable; reservation retained",
+            );
           });
-          const stream = Readable.fromWeb(upstream.body as never);
-          stream.on("error", () => {
-            if (quotaId) void releaseGoogleQuota(quotaId).catch(() => {});
-            res.destroy();
-          });
-          stream.pipe(meter).pipe(res);
+          res.end();
         } else {
           if (quotaId) await releaseGoogleQuota(quotaId);
           res.end();
