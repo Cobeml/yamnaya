@@ -34,7 +34,10 @@ def run(payload):
                 value = json.load(response)
         except urllib.error.HTTPError as exc:
             try:
-                detail = json.load(exc).get("error", "Cube request denied")
+                body = json.load(exc)
+                detail = body.get("error", "Cube request denied")
+                if body.get("details"):
+                    detail += ": " + str(body["details"])[:1000]
             except Exception:
                 detail = "Cube request denied"
             raise RuntimeError(detail) from None
@@ -54,7 +57,7 @@ def run(payload):
 
     schemas = [
         ("camp_cultural", "Read cultural tasks, source dossiers, connections, venues and approved examples. resource board or library reads shared correspondence or released publications.", {"resource":{"type":"string","enum":["cultural","board","library"]}}, lambda a: api(a.get("resource","cultural"))),
-        ("camp_source", "Register a source dossier using an exact passage in retained fetched evidence. Secondary analysis must be Jamestown or Palladium.", {k:{"type":"string"} for k in ["evidenceId","kind","author","edition","date","language","translation","locator","quote","relevance","limitations"]}, lambda a: api("cultural/sources",a)),
+        ("camp_source", "Register a source dossier using an exact passage in retained fetched evidence. All fields are required; translation describes the translator or states original language, no translation. kind is primary or secondary. Secondary analysis must be Jamestown or Palladium.", {k:{"type":"string", "minLength":1} for k in ["evidenceId","kind","author","edition","date","language","translation","locator","quote","relevance","limitations"]}, lambda a: api("cultural/sources",a)),
         ("camp_connection", "Record a sourced connection. kind is documented_transmission, analogy or contradiction; include counterexample and support.", {"sourceIds":{"type":"array","items":{"type":"string"}}, **{k:{"type":"string"} for k in ["kind","claim","support","counterexample"]}}, lambda a: api("cultural/connections",a)),
         ("camp_workflow_submit", "Submit a completed workflow handoff. Set wait=true if blocked by missing input; this stops the task until operator input.", {"id":{"type":"string"},"output":{"type":"string"},"wait":{"type":"boolean"}}, lambda a: api("cultural/submit",a)),
         ("camp_board", "Post an internal thread or reply. New threads need title and visibility camp/shared. Shared discussion is bounded and does not recursively wake agents.", {k:{"type":"string"} for k in ["threadId","title","visibility","text"]}, lambda a: api("board",a)),
@@ -85,7 +88,8 @@ def run(payload):
                 return json.dumps({"error": str(exc)[:1200]})
 
         registry.register(name=name, toolset="yamnaya", schema={"name": name, "description": description,
-            "parameters": {"type": "object", "properties": properties, "additionalProperties": False}}, handler=call)
+            "parameters": {"type": "object", "properties": properties, "additionalProperties": False,
+                **({"required": list(properties)} if name == "camp_source" else {})}}, handler=call)
 
     allowed = {name for name, *_ in schemas} | {"memory"}
     for entry in list(registry.get_all_entries()):

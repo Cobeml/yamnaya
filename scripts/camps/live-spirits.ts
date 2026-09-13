@@ -140,7 +140,7 @@ try {
       (c) => {
         if (!c.cultural?.launch || !c.discord)
           throw new Error("Prepared mission and Discord binding required");
-        setCampStatus(
+        if (c.status !== "running") setCampStatus(
           c,
           "running",
           { kind: "operator", id: owner },
@@ -148,7 +148,6 @@ try {
         );
         return { started: true };
       },
-      { key: "start-spirits-first-issue-v1" },
     );
     console.log(`${camp.name}: ${camp.status}`);
   } else if (mode !== "status")

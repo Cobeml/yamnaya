@@ -16,7 +16,7 @@ try {
     const task = c.cultural?.tasks.find(
       (t) =>
         t.role === role &&
-        ["waiting_input", "waiting_review"].includes(t.status),
+        ["waiting_input", "waiting_quota"].includes(t.status),
     );
     if (!c.cultural?.launch || !task)
       throw new Error("No waiting launch task for this role");

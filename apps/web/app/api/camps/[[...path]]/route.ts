@@ -112,7 +112,7 @@ function failure(e: unknown) {
         error: "Invalid request",
         details:
           e instanceof z.ZodError
-            ? e.issues.map((i) => i.message).join("; ")
+            ? e.issues.map((i) => `${i.path.join(".") || "request"}: ${i.message}`).join("; ")
             : "Invalid JSON",
       },
       400,

@@ -22,6 +22,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(value).encode())
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path.endswith("/cultural/sources"):
+            self.send_response(400); self.send_header("Content-Type", "application/json"); self.end_headers()
+            self.wfile.write(json.dumps({"error":"Invalid request", "details":"translation: expected string"}).encode()); return
         if self.path.endswith("/tools"):
             self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
             self.wfile.write(json.dumps({"result": {"id": "job-fixture", "status": "queued"}, "revision": 1}).encode()); return
@@ -32,6 +35,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         calls.append(data)
         names = [t["function"]["name"] for t in data.get("tools", [])]
         assert "camp_observe" in names, names
+        source_schema = next(t["function"]["parameters"] for t in data["tools"] if t["function"]["name"] == "camp_source")
+        assert "translation" in source_schema["required"]
         assert all(name.startswith("camp_") or name == "memory" for name in names), names
         used = any(m.get("role") == "tool" for m in data.get("messages", []))
         if used and pause_after_tool:
@@ -81,6 +86,13 @@ with tempfile.TemporaryDirectory(prefix="hermes-contract-") as home:
     tool_history = json.loads((Path(home) / "history-ada-tool-v1.json").read_text())
     assert any(m.get("role") == "tool" and "retained-fixture" in str(m.get("content")) for m in tool_history), tool_history
     print("PASS: completed external job preserved status and returned its verified result.")
+    requested_tool = "camp_source"
+    payload["configurationId"] = "ada-source-v1"
+    invalid = subprocess.run([str(source / ".venv/bin/python"), str(runner)], input=json.dumps(payload), text=True, capture_output=True, env=env, cwd=source, timeout=60)
+    assert invalid.returncode == 0, invalid.stdout[-1000:]
+    invalid_history = json.loads((Path(home) / "history-ada-source-v1.json").read_text())
+    assert any(m.get("role") == "tool" and "translation: expected string" in str(m.get("content")) for m in invalid_history), invalid_history
+    print("PASS: source validation identifies the missing field to the agent.")
     requested_tool = "delegate_task"
     payload["configurationId"] = "ada-v2"
     payload["invocationId"] = "test-forbidden-invocation"
