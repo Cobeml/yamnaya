@@ -47,7 +47,7 @@ After the operator supplied `CAMP_MX_USERNAME` and `CAMP_MX_SERVER`, read-only m
 4. Keep exact operator approval for each external message, one recipient per message, and no automatic follow-ups. Record evidence of an invitation, opt-in or existing correspondence separately from contact discovery. Preserve global suppression and add handling for reported opt-outs and hard bounces. Initially the operator can record those from webmail.
 5. Test concurrent quota claims, approval invalidation, suppressed recipients and ambiguous send outcomes with a local SMTP fixture. Then verify account authentication without sending. For the first live send, review one exact message to the operator's test address and inspect received authentication headers. Record acceptance separately from confirmed receipt.
 
-SMTP sending does not provide reply ingestion. Start with replies reviewed in webmail; bounded IMAP access can be a later feature. Treat incoming mail as untrusted material, and do not let it grant tools or authorize further sends. Operator email digests would be another explicit connector configuration; Slack remains the current notification transport.
+SMTP sending does not provide reply ingestion. Start with replies reviewed in webmail; bounded IMAP access can be a later feature. Treat incoming mail as untrusted material, and do not let it grant tools or authorize further sends. Operator email digests would be another explicit connector configuration; Discord remains the current notification transport.
 
 ## Verification status
 

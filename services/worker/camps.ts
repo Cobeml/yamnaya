@@ -3,7 +3,7 @@ import { campDatabase } from "../../apps/web/lib/camp-store";
 import { startCampOrigin } from "./camp-origin";
 import { sandboxRequest } from "./sandbox-client";
 import { config } from "dotenv";
-import { App } from "@slack/bolt";
+import { startCampDiscord, sendDiscordMessage } from "./camp-discord";
 import { campDoctrine, type Camp, type Publication } from "@yamnaya/core";
 import { campApi, checkWork, workerId, type CampWork } from "./camp-client";
 import { startCampGateway } from "./camp-gateway";
@@ -263,28 +263,15 @@ async function tool(work: CampWork): Promise<unknown> {
       ),
     };
   }
-  if (cap === "slack.send") {
-    if (!slack || !camp.slack)
-      throw new Error("Slack is not configured for this camp");
-    const text = String(args.text ?? "").slice(0, 12000);
-    if (!text.trim()) throw new Error("Message text required");
-    const sent = await slack.client.chat.postMessage({
-      channel: camp.slack.channelId,
-      thread_ts: camp.slack.threadTs,
-      text,
-    });
-    const receipt = await slack.client.conversations.replies({
-      channel: camp.slack.channelId,
-      ts: camp.slack.threadTs,
-      oldest: sent.ts,
-      inclusive: true,
-      limit: 10,
-    });
-    if (!receipt.messages?.some((m) => m.ts === sent.ts && m.text === text))
-      throw new Error(
-        "Indeterminate Slack delivery; message was sent but readback did not match",
-      );
-    return { channel: sent.channel, ts: sent.ts, verified: true };
+  if (cap === "discord.send") {
+    if (!discord?.isReady() || !camp.discord)
+      throw new Error("Discord is not configured for this camp");
+    return sendDiscordMessage(
+      camp.discord,
+      String(args.text ?? ""),
+      `job-${job.id}`,
+      () => checkWork(work),
+    );
   }
   if (cap.startsWith("browser.")) {
     if (!process.env.CAMP_BROWSER_URL)
@@ -353,7 +340,7 @@ async function handle(work: CampWork) {
     const detail = e instanceof Error ? e.message : "Worker failed";
     const external =
       work.job.kind === "tool" &&
-      ["publication.publish", "github.propose", "slack.send"].includes(
+      ["publication.publish", "github.propose", "discord.send"].includes(
         String(work.job.input.capability),
       );
     await campApi(
@@ -371,51 +358,14 @@ async function handle(work: CampWork) {
     );
   }
 }
-const slack =
-  process.env.CAMP_SLACK_BOT_TOKEN && process.env.CAMP_SLACK_APP_TOKEN
-    ? new App({
-        token: process.env.CAMP_SLACK_BOT_TOKEN,
-        appToken: process.env.CAMP_SLACK_APP_TOKEN,
-        socketMode: true,
-      })
-    : null;
-if (slack) {
-  slack.message(async ({ message }) => {
-    if (
-      !("text" in message) ||
-      !("user" in message) ||
-      !message.user ||
-      !("thread_ts" in message) ||
-      !message.thread_ts ||
-      "bot_id" in message
-    )
-      return;
-    const { camps } = await campApi("worker");
-    for (const camp of camps as Camp[])
-      if (
-        camp.slack?.channelId === message.channel &&
-        camp.slack.threadTs === message.thread_ts
-      )
-        await campApi(
-          `${camp.id}/worker/slack`,
-          {
-            channelId: message.channel,
-            threadTs: message.thread_ts,
-            userId: message.user,
-            text: message.text,
-          },
-          `slack-${message.ts}`,
-        ).catch(() => console.error("Slack instruction rejected"));
-  });
-  await slack.start();
-}
+const discord = await startCampDiscord();
 const gateway = startCampGateway();
 const origin = startCampOrigin();
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.on(signal, () => {
     stopping = true;
   });
-console.log("Camp worker ready: Hermes, Quarto, GitHub and optional Slack");
+console.log("Camp worker ready: Hermes, Quarto, GitHub and optional Discord");
 let nextSchedule = 0;
 let wake: (() => void) | undefined;
 let unlisten: (() => Promise<void>) | undefined;
@@ -444,7 +394,7 @@ while (!stopping) {
       for (const camp of camps as Camp[]) {
         await campApi(`${camp.id}/worker/schedule`, {});
       }
-      await campUpdates(camps as Camp[], slack);
+      await campUpdates(camps as Camp[], discord);
       nextSchedule = Date.now() + 30000;
     }
     if (active.size < 6) {
@@ -463,7 +413,7 @@ while (!stopping) {
   await waitForWork();
 }
 await Promise.allSettled(active);
-await slack?.stop();
+await discord?.destroy();
 await unlisten?.();
 gateway.close();
 origin?.close();

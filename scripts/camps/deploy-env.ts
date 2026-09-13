@@ -17,7 +17,7 @@ const allowed = values.CAMP_ORIGIN_URL
       "CAMP_OPERATOR_PASSWORD",
       "CAMP_SESSION_SECRET",
       "CAMP_WORKER_TOKEN",
-      "CAMP_SLACK_OPERATOR_IDS",
+      "CAMP_DISCORD_OPERATOR_IDS",
       "CAMP_PUBLIC_URL",
       "CAMP_PREVIEW_URL",
       "CAMP_PREVIEW_SECRET",
@@ -25,7 +25,7 @@ const allowed = values.CAMP_ORIGIN_URL
     ];
 for (const name of allowed) {
   const value = values[name];
-  if (!value && name !== "CAMP_SLACK_OPERATOR_IDS")
+  if (!value && name !== "CAMP_DISCORD_OPERATOR_IDS")
     throw new Error(`${name} is missing`);
   if (!value) continue;
   const result = spawnSync(
@@ -50,7 +50,7 @@ if (values.CAMP_ORIGIN_URL) {
     "CAMP_STORAGE",
     "CAMP_ARTIFACT_STORAGE",
     "CAMP_OPERATOR_ID",
-    "CAMP_SLACK_OPERATOR_IDS",
+    "CAMP_DISCORD_OPERATOR_IDS",
   ]) {
     const result = spawnSync(
       "vercel",

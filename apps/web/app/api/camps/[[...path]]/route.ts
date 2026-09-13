@@ -1,3 +1,4 @@
+import { discordBindingSchema, applyDiscordInstruction } from "@yamnaya/core";
 import {
   suppressContact,
   contactSuppressed,
@@ -56,7 +57,6 @@ import {
   checkCampJob,
   completeCampJob,
   type Camp,
-  type CampActor,
 } from "@yamnaya/core";
 import {
   listCamps,
@@ -189,8 +189,9 @@ export async function GET(req: NextRequest, context: Context) {
           process.env.CAMP_GMAIL_SENDER
         ),
         github: !!process.env.CAMP_GITHUB_TOKEN,
-        slack: !!(
-          process.env.CAMP_SLACK_BOT_TOKEN && process.env.CAMP_SLACK_APP_TOKEN
+        discord: !!(
+          process.env.CAMP_DISCORD_BOT_TOKEN &&
+          process.env.CAMP_DISCORD_OPERATOR_IDS
         ),
       });
     }
@@ -771,13 +772,9 @@ export async function POST(req: NextRequest, context: Context) {
               .min(0)
               .max(10080)
               .parse(input.refreshMinutes);
-          if (input.slack)
-            camp.slack = z
-              .object({
-                channelId: z.string().regex(/^[CG][A-Z0-9]+$/),
-                threadTs: z.string().regex(/^\d+\.\d+$/),
-              })
-              .parse(input.slack);
+          if (input.discord === null) delete camp.discord;
+          else if (input.discord !== undefined)
+            camp.discord = discordBindingSchema.parse(input.discord);
           campEvent(
             camp,
             "camp.configured",
@@ -1085,43 +1082,14 @@ export async function POST(req: NextRequest, context: Context) {
           );
           return { ok: true };
         }
-        if (operation === "worker/slack") {
+        if (operation === "worker/discord") {
           requireWorker(req);
-          if (
-            !camp.slack ||
-            input.channelId !== camp.slack.channelId ||
-            input.threadTs !== camp.slack.threadTs
-          )
-            throw new DomainError(
-              "Slack thread is not bound to this camp",
-              "FORBIDDEN",
-              403,
-            );
-          const ids = (process.env.CAMP_SLACK_OPERATOR_IDS ?? "").split(",");
-          if (!ids.includes(String(input.userId)))
-            throw new DomainError(
-              "Slack user is not a camp operator",
-              "FORBIDDEN",
-              403,
-            );
-          const text = z
-            .string()
-            .max(12000)
-            .parse(input.text)
-            .trim()
-            .replace(/^`|`$/g, "");
-          campEvent(
+          return applyDiscordInstruction(
             camp,
-            "slack.instruction",
-            `Instruction from Slack user ${String(input.userId)}`,
-            String(input.userId),
+            input,
+            process.env.CAMP_DISCORD_OPERATOR_IDS ?? "",
             now,
           );
-          const human: CampActor = { id: camp.ownerId, kind: "operator" };
-          const match = /^approve (publication-[\w-]+) v(\d+)$/.exec(text);
-          return match
-            ? approvePublication(camp, match[1], Number(match[2]), human, now)
-            : instructCamp(camp, { text }, human, now);
         }
         throw new DomainError("Unknown camp operation", "NOT_FOUND", 404);
       },

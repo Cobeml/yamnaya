@@ -4,7 +4,7 @@ Yamnaya's default experience is a world of mission-oriented camps. The same cycl
 
 ```mermaid
 flowchart LR
-  Human[Operator / bound Slack identity] --> API[Authenticated camp API]
+  Human[Operator / bound Discord identity] --> API[Authenticated camp API]
   Scene[3D campsite and inspectors] <--> API
   API --> Core[Deterministic camp and domain policy]
   API --> DB[(PostgreSQL state, jobs and events)]
@@ -17,7 +17,7 @@ flowchart LR
   Worker --> Sandbox[Isolated Quarto / code sandbox]
   Sandbox --> Artifacts[Digest-bound artifacts / separate preview origin]
   Worker --> GitHub[Source PR / reviewed Pages artifact]
-  Worker --> Slack[Slack Socket Mode]
+  Worker --> Discord[Discord Gateway]
 ```
 
 ## Ownership and boundaries
@@ -58,6 +58,6 @@ See [camp operations](camps.md) for configuration and known limits, and [tasks](
 
 `packages/core/src/cultural.ts` owns source dossiers, evidence-linked connections, four-role dependency tasks, exact-message approvals and comparative skill-promotion gates. `quota.ts` owns deterministic rate and monthly budget reservations. The worker stores these reservations under a database row lock before contacting Gemini. An active reservation serializes provider requests across camps. Expired or uncertain reservations are not refunded; quotas and budget waits release jobs until their persisted resume time.
 
-Internal boards use an owner-scoped locked row, with private/shared visibility and bounded agent correspondence. Shared library entries point to released publications. Outbound delivery is claimed before the external effect; worker restarts do not blindly repeat uncertain messages. Cross-camp suppression uses hashed owner/destination records and is checked again before sending. Slack alerts and digests have durable unique delivery keys.
+Internal boards use an owner-scoped locked row, with private/shared visibility and bounded agent correspondence. Shared library entries point to released publications. Outbound delivery is claimed before the external effect; worker restarts do not blindly repeat uncertain messages. Cross-camp suppression uses hashed owner/destination records and is checked again before sending. Discord alerts and digests have durable unique delivery keys.
 
 The local work projection and PostgreSQL notification wake the worker; periodic recovery still checks scheduled work. Read-only lease checks do not write camp revisions, and no-op transitions avoid state rewrites. See [cultural operations](cultural-camps.md) for budget semantics, manual evaluation limits and remaining credentials.

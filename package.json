@@ -27,7 +27,7 @@
     "camps:test:e2e": "playwright test --config playwright.camps.config.ts"
   },
   "dependencies": {
-    "@slack/bolt": "^4.6.0",
+    "discord.js": "14.27.0",
     "postgres": "^3.4.8",
     "zod": "^4.3.6"
   },

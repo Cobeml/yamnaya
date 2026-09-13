@@ -248,6 +248,18 @@ function PublicationEditor({
             </p>
           ))}
           <code title={p.build.digest}>{p.build.digest.slice(0, 24)}…</code>
+          {camp.discord && (
+            <details>
+              <summary>Approval command for Discord</summary>
+              <p>
+                Review the rendered preview first, then paste this command in
+                the bound channel.
+              </p>
+              <code>
+                !camp approve {p.id} v{p.version} {p.build.digest}
+              </code>
+            </details>
+          )}
           {preview?.previewUrl && (
             <a
               className="camp-link-button"
@@ -1188,34 +1200,48 @@ export default function CampConsole() {
                   most 24 model requests and 12 iterations.
                 </p>
                 <details>
-                  <summary>Bind a Slack thread</summary>
+                  <summary>Bind a Discord channel or thread</summary>
                   <Form
                     onSubmit={(d) =>
                       void act(() =>
                         post("settings", {
-                          slack: {
+                          discord: {
                             channelId: field(d, "channel"),
-                            threadTs: field(d, "thread"),
+                            guildId: field(d, "guild"),
                           },
                         }),
                       )
                     }
                   >
                     <Field
-                      label="Channel ID"
+                      label="Channel or thread ID"
                       name="channel"
-                      value={camp.slack?.channelId}
+                      value={camp.discord?.channelId}
                     />
                     <Field
-                      label="Thread timestamp"
-                      name="thread"
-                      value={camp.slack?.threadTs}
+                      label="Server ID"
+                      name="guild"
+                      value={camp.discord?.guildId}
                     />
-                    <button>Bind thread</button>
+                    <button>Bind Discord</button>
                   </Form>
                   <p className="camp-muted">
-                    Only configured Slack operators can issue instructions.
+                    Only allowlisted Discord operators can issue !camp commands.
                     Provider credentials stay in the worker environment.
+                  </p>
+                  {camp.discord && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void act(() => post("settings", { discord: null }))
+                      }
+                    >
+                      Disconnect Discord
+                    </button>
+                  )}
+                  <p className="camp-muted">
+                    Use !camp instruct followed by your instruction. Copy server
+                    and channel IDs using Discord Developer Mode.
                   </p>
                 </details>
                 <details>

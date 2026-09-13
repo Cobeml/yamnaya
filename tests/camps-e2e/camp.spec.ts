@@ -38,6 +38,26 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
     page.getByRole("heading", { name: "The black cube" }),
   ).toBeVisible();
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.getByRole("button", { name: "Setup", exact: true }).click();
+  await page
+    .getByText("Bind a Discord channel or thread", { exact: true })
+    .click();
+  await page
+    .getByLabel("Server ID", { exact: true })
+    .fill("123456789012345678");
+  await page
+    .getByLabel("Channel or thread ID", { exact: true })
+    .fill("234567890123456789");
+  await page.getByRole("button", { name: "Bind Discord", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Disconnect Discord", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Disconnect Discord", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Disconnect Discord", exact: true }),
+  ).not.toBeVisible();
   await page.getByRole("button", { name: "Start camp", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Pause camp", exact: true }),

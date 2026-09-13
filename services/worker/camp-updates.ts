@@ -1,22 +1,11 @@
 import { contactSuppressed } from "../../apps/web/lib/camp-suppression";
-import type { App } from "@slack/bolt";
+import type { Client } from "discord.js";
+import { sendDiscordMessage } from "./camp-discord";
+import { deliverOnce } from "./camp-delivery";
 import type { Camp } from "@yamnaya/core";
-import { campDatabase } from "../../apps/web/lib/camp-store";
 import { campApi } from "./camp-client";
 import { gmailConfigured, sendGmail, verifyForum } from "./camp-outreach";
-async function once(id: string, send: () => Promise<unknown>) {
-  const db = campDatabase();
-  const rows =
-    await db`INSERT INTO camp_delivery(id,state) VALUES(${id},${db.json({ status: "sending", at: new Date().toISOString() })}) ON CONFLICT DO NOTHING RETURNING id`;
-  if (!rows.length) return;
-  try {
-    await send();
-    await db`UPDATE camp_delivery SET state=${db.json({ status: "sent" })} WHERE id=${id}`;
-  } catch {
-    await db`UPDATE camp_delivery SET state=${db.json({ status: "indeterminate" })} WHERE id=${id}`;
-  }
-}
-export async function campUpdates(camps: Camp[], slack: App | null) {
+export async function campUpdates(camps: Camp[], discord: Client | null) {
   for (const camp of camps) {
     if (!camp.cultural || camp.status === "archived") continue;
     const cultural = camp.cultural;
@@ -49,15 +38,11 @@ export async function campUpdates(camps: Camp[], slack: App | null) {
         );
       }
     }
-    if (!slack || !camp.slack) continue;
-    const send = (text: string) =>
-      slack.client.chat.postMessage({
-        channel: camp.slack!.channelId,
-        thread_ts: camp.slack!.threadTs,
-        text,
-        unfurl_links: false,
-        unfurl_media: false,
-      });
+    if (!discord?.isReady() || !camp.discord) continue;
+    const send = (id: string, text: string) =>
+      deliverOnce(id, () =>
+        sendDiscordMessage(camp.discord!, text.slice(0, 2000), id),
+      );
     const stamp = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/New_York",
       year: "numeric",
@@ -71,14 +56,13 @@ export async function campUpdates(camps: Camp[], slack: App | null) {
         (r, t) => ({ ...r, [t.status]: (r[t.status] ?? 0) + 1 }),
         {} as Record<string, number>,
       );
-      await once(`digest-${camp.id}-${stamp.slice(0, 10)}`, () =>
-        send(
-          `${camp.name}: ${
-            Object.entries(counts)
-              .map(([s, n]) => `${n} ${s.replaceAll("_", " ")}`)
-              .join(", ") || "awaiting first workflow"
-          }. ${cultural.outbox.filter((o) => o.status === "draft").length} outbound drafts await review. ${process.env.CAMP_PUBLIC_URL}`,
-        ),
+      await send(
+        `digest-${camp.id}-${stamp.slice(0, 10)}`,
+        `${camp.name}: ${
+          Object.entries(counts)
+            .map(([s, n]) => `${n} ${s.replaceAll("_", " ")}`)
+            .join(", ") || "awaiting first workflow"
+        }. ${cultural.outbox.filter((o) => o.status === "draft").length} outbound drafts await review. ${process.env.CAMP_PUBLIC_URL}`,
       );
     }
     for (const outbound of cultural.outbox.filter(
@@ -86,10 +70,9 @@ export async function campUpdates(camps: Camp[], slack: App | null) {
     )) {
       for (const days of [7, 30]) {
         if (Date.now() - Date.parse(outbound.receipt!.at) >= days * 86400000)
-          await once(`followup-${camp.id}-${outbound.id}-${days}`, () =>
-            send(
-              `${camp.name}: ${days}-day review of “${outbound.subject}”. Record independent citations, discussion, reuse or no observed response. ${process.env.CAMP_PUBLIC_URL}`,
-            ),
+          await send(
+            `followup-${camp.id}-${outbound.id}-${days}`,
+            `${camp.name}: ${days}-day review of “${outbound.subject}”. Record independent citations, discussion, reuse or no observed response. ${process.env.CAMP_PUBLIC_URL}`,
           );
       }
     }
@@ -105,10 +88,9 @@ export async function campUpdates(camps: Camp[], slack: App | null) {
           "workflow.waiting",
         ].includes(e.type),
       ))
-      await once(`update-${camp.id}-${event.id}`, () =>
-        send(
-          `${camp.name}: ${event.detail}\nReview: ${process.env.CAMP_PUBLIC_URL}`,
-        ),
+      await send(
+        `update-${camp.id}-${event.id}`,
+        `${camp.name}: ${event.detail}\nReview: ${process.env.CAMP_PUBLIC_URL}`,
       );
   }
 }

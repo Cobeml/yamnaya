@@ -4,7 +4,7 @@ The camp app is hosted at **https://yamnaya.vercel.app**. The separate preview o
 
 ## Configuration
 
-Use a private, ignored `.env.camps.production` file with the camp operator/session/worker credentials and the production `CAMP_DATABASE_URL`. Set `CAMP_STORAGE=postgres`, `CAMP_ARTIFACT_STORAGE=postgres`, `CAMP_API_URL` and `CAMP_PUBLIC_URL` to the application origin, and `CAMP_PREVIEW_URL` to the preview origin. Share `CAMP_PREVIEW_SECRET` between the worker and Vercel. Provider and Slack/GitHub credentials belong only on the worker.
+Use a private, ignored `.env.camps.production` file with the camp operator/session/worker credentials and the production `CAMP_DATABASE_URL`. Set `CAMP_STORAGE=postgres`, `CAMP_ARTIFACT_STORAGE=postgres`, `CAMP_API_URL` and `CAMP_PUBLIC_URL` to the application origin, and `CAMP_PREVIEW_URL` to the preview origin. Share `CAMP_PREVIEW_SECRET` between the worker and Vercel. Provider and Discord/GitHub credentials belong only on the worker.
 
 ```bash
 CAMP_ENV_FILE=.env.camps.production pnpm db:migrate
@@ -26,4 +26,4 @@ The local file and PostgreSQL modes remain available for development. When the e
 CAMP_ENV_FILE=.env.camps.production pnpm test:e2e
 ```
 
-This creates its own simulation camp, executes Quarto in the real sandbox and checks the hosted preview, image import, and revision approval behavior. It makes no paid model request and does not publish a GitHub site or send Slack messages. Live agents require a configured model provider. The executor host must remain available for queued jobs to run.
+This creates its own simulation camp, executes Quarto in the real sandbox and checks the hosted preview, image import, and revision approval behavior. It makes no paid model request and does not publish a GitHub site or send Discord messages. Live agents require a configured model provider. The executor host must remain available for queued jobs to run.

@@ -142,7 +142,7 @@ export default function CulturalPanel({
     gemini: { key: boolean; monthlyUsd: number };
     gmail: boolean;
     github: boolean;
-    slack: boolean;
+    discord: boolean;
   } | null>(null);
   useEffect(() => {
     let live = true;
@@ -213,8 +213,8 @@ export default function CulturalPanel({
           </p>
           <p>
             Gmail: {configuration.gmail ? "configured" : "OAuth setup required"}
-            . GitHub and Slack credentials must be validated before live use.
-            Slack channel: {camp.slack?.channelId ?? "not bound"}.
+            . GitHub and Discord credentials must be validated before live use.
+            Discord channel: {camp.discord?.channelId ?? "not bound"}.
           </p>
         </details>
       )}

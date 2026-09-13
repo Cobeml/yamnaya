@@ -39,7 +39,7 @@ No GitHub repository is created automatically. Repository access, Actions, Pages
 | publication.render | owner/repository | publicationId |
 | github.propose | owner/repository | publicationId |
 | publication.publish | owner/repository | publicationId; a current build approval is also required |
-| slack.send | bound channel ID | text |
+| discord.send | bound server ID/channel ID | text (up to 2,000 characters) |
 
 Browser actions are currently for public, unauthenticated research: GET requests only, no downloads, popup browsing, service workers, WebSockets, or form submissions. Each resource and redirect is checked against public IP ranges and granted hostnames, with DNS resolution pinned for the fetch. Cross-host resources require corresponding grants. Browser sessions expire after ten idle minutes.
 
@@ -47,7 +47,7 @@ Browser actions are currently for public, unauthenticated research: GET requests
 
 - `CAMP_MODEL_API_KEY`, `CAMP_MODEL_BASE_URL`, `CAMP_MODEL`, `CAMP_MODEL_API_MODE`: an OpenAI-compatible provider. Default transport is `chat_completions`; the gateway also exposes Responses. Provider compatibility beyond the tested fixture must be verified with the configured model.
 - `CAMP_GITHUB_TOKEN`: access to contents, pull requests, workflows/Actions and Pages on provisioned repositories. The worker creates a source branch, a PR, and an artifact branch. It never pushes into this checkout.
-- `CAMP_SLACK_BOT_TOKEN`, `CAMP_SLACK_APP_TOKEN`, `CAMP_SLACK_OPERATOR_IDS`: Socket Mode and a comma-separated allowlist of operator user IDs. Bind each camp to a channel and existing thread under Setup. Bot access needs message writing and thread history scopes. Unbound threads and other users cannot instruct the camp.
+- `CAMP_DISCORD_BOT_TOKEN`, `CAMP_DISCORD_OPERATOR_IDS`: bot token and comma-separated operator user IDs. Bind a server and channel/thread under Setup. See [Discord setup](discord.md) for bot installation, intents, permissions and commands.
 - `CAMP_SEARCH_URL`: an optional SearXNG server permitting JSON search. Direct fetch works independently. The local-production override includes a private SearXNG service. No paid search subscription is used.
 - `CAMP_PREVIEW_URL`: a separate preview origin, default `http://127.0.0.1:4112`. Preview URLs are signed bearer links; keep them private when their content is private. Rotate `CAMP_PREVIEW_SECRET` to invalidate existing links.
 
@@ -65,7 +65,7 @@ Deriving an agent combines one or two selected active configurations and their a
 
 Pausing cancels queued jobs and denies new agent actions and model reservations. Running Hermes invocations are cancelled when the worker next checks their leases. A remote effect already delivered cannot be undone by pausing.
 
-Leases expire after six minutes. An interrupted effect becomes indeterminate and is not automatically retried. Inspect the camp journal, the corresponding GitHub branch/PR/Pages release or Slack thread, and the Hermes invocation journal before issuing new work. PR and artifact branches are reconciled by deterministic names and byte checks; Slack sends must not be blindly repeated. There is no universal retry button for an uncertain external effect.
+Leases expire after six minutes. An interrupted effect becomes indeterminate and is not automatically retried. Inspect the camp journal, the corresponding GitHub branch/PR/Pages release or Discord thread, and the Hermes invocation journal before issuing new work. PR and artifact branches are reconciled by deterministic names and byte checks; Discord sends must not be blindly repeated. There is no universal retry button for an uncertain external effect.
 
 Hermes invocation journals and per-configuration conversation checkpoints live in the private `camp-hermes` volume. Artifacts are bound to source and output digests in `camp-artifacts`; no publication code runs with GitHub credentials. Quarto runs on an internal Docker network, with a read-only root filesystem, temporary job files, CPU/memory/process limits and no provider secrets. The entire sandbox container is recycled after each job to remove detached descendants; sandbox jobs are serialized. HTML previews are served on the separate origin under a restrictive sandbox CSP. Sites can contain client-side JavaScript; externally hosted libraries are blocked in previews, so prefer bundled assets.
 

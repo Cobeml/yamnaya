@@ -39,7 +39,7 @@ def launch(payload, job):
     identity = payload["campId"] + "/" + payload["agentId"]
     home = ROOT / "profiles" / payload["campId"] / payload["agentId"]
     home.mkdir(parents=True, exist_ok=True)
-    # The child never inherits provider, Slack, GitHub or supervisor credentials.
+    # The child never inherits provider, Discord, GitHub or supervisor credentials.
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8",
            "HERMES_HOME": str(home), "HERMES_MANAGED_DIR": "/opt/yamnaya/managed",
            "PYTHONPATH": str(SOURCE), "PYTHONUNBUFFERED": "1",

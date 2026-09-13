@@ -14,7 +14,7 @@ export const capabilityNames = [
   "publication.render",
   "github.propose",
   "publication.publish",
-  "slack.send",
+  "discord.send",
 ] as const;
 export type CapabilityName = (typeof capabilityNames)[number];
 export type CampActor = {
@@ -191,7 +191,7 @@ export interface Camp {
     refreshMinutes: number;
     nextRefreshAt: string;
   };
-  slack?: { channelId: string; threadTs: string };
+  discord?: { guildId: string; channelId: string };
   game: {
     board: ("X" | "O" | null)[];
     next: "X" | "O";
@@ -818,8 +818,10 @@ export function toolScope(
     return url.hostname;
   }
   if (capability.startsWith("browser.")) return String(args.hostname ?? "");
-  if (capability === "slack.send")
-    return camp.slack?.channelId ?? "unconfigured";
+  if (capability === "discord.send")
+    return camp.discord
+      ? `${camp.discord.guildId}/${camp.discord.channelId}`
+      : "unconfigured";
   if (capability === "code.execute") return camp.id;
   return "public-web";
 }
@@ -897,6 +899,12 @@ export function checkCampJob(camp: Camp, job: CampJob, now: string) {
       "Capability revoked or expired",
     );
     const args = job.input.arguments as Record<string, unknown>;
+    if (cap === "discord.send")
+      requireCondition(
+        !!camp.discord && job.input.scope === toolScope(camp, cap, args),
+        "Discord binding changed; request a new send",
+        "CONFLICT",
+      );
     if (job.input.sourceVersion !== undefined) {
       const p = camp.publications.find((p) => p.id === args.publicationId);
       requireCondition(
