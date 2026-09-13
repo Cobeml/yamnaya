@@ -1,5 +1,12 @@
 import { reserveGoogleQuota, releaseGoogleQuota } from "./camp-quota";
 import http from "node:http";
+import {
+  astraModel,
+  flashModel,
+  spiritLaunchId,
+  culturalModelRequest,
+} from "@yamnaya/core";
+import { reserveAstra, recordAstraUsage } from "./camp-launch";
 import { Readable, Transform } from "node:stream";
 import { verifyCampToken } from "../../apps/web/lib/camp-auth";
 import { campApi } from "./camp-client";
@@ -19,6 +26,7 @@ export function startCampGateway() {
   return http
     .createServer(async (req, res) => {
       let quotaId: string | undefined;
+      let astraId: string | undefined;
       try {
         const url = new URL(req.url ?? "/", "http://gateway");
         if (req.method === "GET" && url.pathname === "/health") {
@@ -74,7 +82,7 @@ export function startCampGateway() {
           if (raw.length > 800000)
             throw new Error("Model context exceeds configured bound");
         }
-        const input = JSON.parse(raw);
+        let input = JSON.parse(raw);
 
         delete input.store;
         input.store = false;
@@ -100,32 +108,78 @@ export function startCampGateway() {
             inspect: true,
           },
         );
-        const google = reservation.cultural === true;
-        if (google) {
-          input.model = "gemini-3.8-flash";
-          input.max_completion_tokens = 8192;
-          input.reasoning_effort = reservation.profile?.reasoning ?? "low";
-          delete input.store;
-          const quota = await reserveGoogleQuota(
-            Buffer.byteLength(raw, "utf8"),
-            reservation.training === true,
-          );
-          if (!quota.allowed) {
-            res.writeHead(429, {
-              "Content-Type": "application/json",
-              "X-Camp-Retry-At": new Date(quota.retryAt).toISOString(),
-              "Retry-After": String(
-                Math.ceil((quota.retryAt - Date.now()) / 1000),
-              ),
-            });
-            res.end(
-              JSON.stringify({
-                error: { message: quota.reason, type: "camp_quota" },
-              }),
+        let google = reservation.cultural === true;
+        if (reservation.cultural) {
+          if (!url.pathname.endsWith("chat/completions"))
+            throw new Error("Cultural Hermes calls require Chat Completions");
+          let model = flashModel;
+          const research =
+            reservation.launch === spiritLaunchId &&
+            ["finder", "referencer"].includes(String(token.agentId)) &&
+            reservation.profile?.model === astraModel &&
+            !reservation.training;
+          if (
+            reservation.launch === spiritLaunchId &&
+            process.env.CAMP_SPIRIT_LAUNCH_ENABLED !== "true"
+          )
+            throw new Error("Spirit launch is not enabled");
+          if (reservation.launch === spiritLaunchId && reservation.training)
+            throw new Error("Paid training is disabled during the first issue");
+          if (!process.env.CAMP_GEMINI_API_KEY)
+            throw new Error("Gemini key is missing");
+          if (research) {
+            if (Date.now() >= Date.parse("2027-01-01T00:00:00Z"))
+              throw new Error("Review launch model prices before paid calls");
+            if (!process.env.CAMP_MODEL_API_KEY)
+              throw new Error("OpenAI key is missing");
+            const prepared = culturalModelRequest(
+              input,
+              astraModel,
+              reservation.profile?.reasoning,
             );
-            return;
+            const budget = await reserveAstra(
+              String(token.campId),
+              String(token.jobId),
+              Buffer.byteLength(JSON.stringify(prepared), "utf8"),
+            );
+            model = budget.model;
+            if (model === astraModel) astraId = budget.id;
+            // This journal entry also feeds the durable Discord update path.
+            if (model === flashModel)
+              await campApi(
+                `${token.campId}/worker/model-fallback`,
+                {},
+                "spirits-fallback",
+              );
           }
-          quotaId = quota.id;
+          input = culturalModelRequest(
+            input,
+            model,
+            reservation.profile?.reasoning,
+          );
+          google = model === flashModel;
+          if (google) {
+            const quota = await reserveGoogleQuota(
+              Buffer.byteLength(JSON.stringify(input), "utf8") + 8192,
+              reservation.training === true,
+            );
+            if (!quota.allowed) {
+              res.writeHead(429, {
+                "Content-Type": "application/json",
+                "X-Camp-Retry-At": new Date(quota.retryAt).toISOString(),
+                "Retry-After": String(
+                  Math.ceil((quota.retryAt - Date.now()) / 1000),
+                ),
+              });
+              res.end(
+                JSON.stringify({
+                  error: { message: quota.reason, type: "camp_quota" },
+                }),
+              );
+              return;
+            }
+            quotaId = quota.id;
+          }
         } else input.model = process.env.CAMP_MODEL;
         const key = google
           ? process.env.CAMP_GEMINI_API_KEY
@@ -133,7 +187,9 @@ export function startCampGateway() {
         if (!key) throw new Error("Model provider key is not configured");
         const base = google
           ? "https://generativelanguage.googleapis.com/v1beta/openai"
-          : process.env.CAMP_MODEL_BASE_URL?.replace(/\/$/, "");
+          : reservation.cultural
+            ? "https://api.openai.com/v1"
+            : process.env.CAMP_MODEL_BASE_URL?.replace(/\/$/, "");
         reservation = {
           ...reservation,
           ...(await campApi(`${token.campId}/worker/model-reserve`, {
@@ -153,7 +209,7 @@ export function startCampGateway() {
             signal: AbortSignal.timeout(90000),
           },
         );
-        if (google && upstream.status === 429) {
+        if (reservation.cultural && upstream.status === 429) {
           const seconds = Number(upstream.headers.get("retry-after"));
           const retryAt =
             Date.now() +
@@ -171,7 +227,7 @@ export function startCampGateway() {
           res.end(
             JSON.stringify({
               error: {
-                message: "Gemini quota exhausted; task saved for later",
+                message: "Provider quota exhausted; task saved for later",
                 type: "camp_quota",
               },
             }),
@@ -221,7 +277,22 @@ export function startCampGateway() {
                 /* Non-JSON SSE framing. */
               }
             }
+            if (astraId && usage)
+              void recordAstraUsage(astraId, {
+                inputTokens: Number(
+                  usage.input_tokens ?? usage.prompt_tokens ?? 0,
+                ),
+                outputTokens: Number(
+                  usage.output_tokens ?? usage.completion_tokens ?? 0,
+                ),
+              }).catch(() => {
+                console.error(
+                  "Astra usage receipt unavailable; reservation retained",
+                );
+              });
             void campApi(token.campId + "/worker/model-result", {
+              model: input.model,
+              provider: google ? "google" : "openai",
               jobId: token.jobId,
               requestNumber: reservation.requestNumber,
               usage: usage

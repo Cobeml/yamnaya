@@ -346,6 +346,71 @@ function PublicationEditor({
     </article>
   );
 }
+function LaunchBudget() {
+  const [budget, setBudget] = useState<{
+    reservedUsd: number;
+    remainingUsd: number;
+    fallback: boolean;
+    reportedInputTokens: number;
+    reportedOutputTokens: number;
+    unreportedRequests: number;
+  } | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let mounted = true;
+    const update = () =>
+      api("launch-budget")
+        .then((value) => {
+          if (mounted) {
+            setBudget(value);
+            setError("");
+          }
+        })
+        .catch(() => {
+          if (mounted) setError("Budget status unavailable");
+        });
+    void update();
+    const timer = setInterval(() => void update(), 15000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
+  return (
+    <div className="camp-row">
+      <div>
+        <strong>First issue model budget</strong>
+        {error && <p>{error}</p>}
+        {budget ? (
+          <>
+            <p>
+              Research:{" "}
+              {budget.fallback
+                ? "Gemini 3.8 Flash (Astra allowance reserved)"
+                : "GPT-6 Astra"}
+              . Writing and marketing: Gemini 3.8 Flash.
+            </p>
+            <p>
+              ${budget.reservedUsd.toFixed(2)} reserved of $50 across both
+              camps; ${budget.remainingUsd.toFixed(2)} remaining. Gemini has a
+              separate $10 monthly cap.
+            </p>
+            <p className="camp-muted">
+              OpenAI reported {budget.reportedInputTokens.toLocaleString()}{" "}
+              input / {budget.reportedOutputTokens.toLocaleString()} output
+              tokens. {budget.unreportedRequests} requests have no usage
+              receipt. Reservations remain charged against the allowance; this
+              is not an account invoice.
+            </p>
+          </>
+        ) : (
+          <p>Loading budget…</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CampConsole() {
   const [signedIn, setSignedIn] = useState(false),
     [loading, setLoading] = useState(true),
@@ -1199,6 +1264,7 @@ export default function CampConsole() {
                   {camp.budgets.socialTurns} social turns. Each turn permits at
                   most 24 model requests and 12 iterations.
                 </p>
+                {camp.cultural?.launch && <LaunchBudget />}
                 <details>
                   <summary>Bind a Discord channel or thread</summary>
                   <Form

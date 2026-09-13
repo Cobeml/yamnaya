@@ -5,6 +5,7 @@ import {
   campEvent,
   requireCampActor,
   requireCampOperator,
+  setCampStatus,
   queueCampTurn,
   type Camp,
   type CampActor,
@@ -122,6 +123,7 @@ export interface Evaluation {
 }
 export interface CulturalState {
   version: 1;
+  launch?: "spirits-first-issue";
   focus: "america" | "china";
   tasks: WorkflowTask[];
   sources: SourceDossier[];
@@ -367,6 +369,24 @@ export function startWorkflow(
 export function advanceWorkflow(camp: Camp, now: string) {
   const s = camp.cultural;
   if (!s || camp.status !== "running") return;
+  if (
+    s.launch &&
+    s.tasks.length &&
+    s.tasks.every((t) => t.status === "done") &&
+    camp.publications.length &&
+    camp.publications.every((p) => p.deployment) &&
+    !camp.jobs.some((j) => j.status === "leased" || j.status === "queued")
+  ) {
+    setCampStatus(camp, "paused", { kind: "operator", id: camp.ownerId }, now);
+    campEvent(
+      camp,
+      "launch.completed",
+      "First issue delivered. Paid research is paused for editorial review.",
+      "scheduler",
+      now,
+    );
+    return;
+  }
   for (const t of s.tasks) {
     if (
       t.status === "waiting_input" &&

@@ -1,3 +1,4 @@
+import { readLaunchSummary } from "../../../../lib/camp-launch";
 import { discordBindingSchema, applyDiscordInstruction } from "@yamnaya/core";
 import {
   suppressContact,
@@ -168,6 +169,10 @@ export async function GET(req: NextRequest, context: Context) {
           (process.env.CAMP_DATABASE_URL || process.env.CAMP_STORAGE === "file")
         ),
       });
+    if (parts[0] === "launch-budget") {
+      requireOperator(req);
+      return json(await readLaunchSummary());
+    }
     if (parts[0] === "configuration") {
       requireOperator(req);
       return json({
@@ -383,6 +388,7 @@ export async function POST(req: NextRequest, context: Context) {
       const agent = current.agents.find((a) => a.id === job.agentId)!;
       return json({
         cultural: !!current.cultural,
+        launch: current.cultural?.launch,
         training: job.kind === "training",
         profile: agent.configurations.find((c) => c.id === job.configurationId)
           ?.modelProfile,
@@ -842,6 +848,17 @@ export async function POST(req: NextRequest, context: Context) {
           }
           return { ok: true };
         }
+        if (operation === "worker/model-fallback") {
+          requireWorker(req);
+          campEvent(
+            camp,
+            "model.fallback",
+            "The shared $50 Astra launch allowance is reserved. Research continues with Gemini Flash within its monthly budget.",
+            "gateway",
+            now,
+          );
+          return { ok: true };
+        }
         if (operation === "worker/model-result") {
           requireWorker(req);
           const job = camp.jobs.find((j) => j.id === input.jobId);
@@ -866,7 +883,14 @@ export async function POST(req: NextRequest, context: Context) {
                 })
                 .parse(input.usage)
             : null;
-          receipts[String(number)] = usage;
+          receipts[String(number)] = {
+            usage,
+            model: z.string().max(100).optional().parse(input.model),
+            provider: z
+              .enum(["openai", "google"])
+              .optional()
+              .parse(input.provider),
+          };
           job.input.modelReceipts = receipts;
           campEvent(
             camp,
@@ -904,6 +928,7 @@ export async function POST(req: NextRequest, context: Context) {
             const a = camp.agents.find((a) => a.id === j.agentId)!;
             return {
               cultural: !!camp.cultural,
+              launch: camp.cultural?.launch,
               training: j.kind === "training",
               profile: a.configurations.find((c) => c.id === j.configurationId)
                 ?.modelProfile,
@@ -930,6 +955,7 @@ export async function POST(req: NextRequest, context: Context) {
             remaining: 23 - count,
             requestNumber: count + 1,
             cultural: !!camp.cultural,
+            launch: camp.cultural?.launch,
             training: j.kind === "training",
             profile: agent.configurations.find(
               (c) => c.id === j.configurationId,

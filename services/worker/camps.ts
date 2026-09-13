@@ -87,8 +87,12 @@ async function agentTurn(work: CampWork) {
     sessionId: `${camp.id}-${agent.id}`,
     token: work.token,
     apiUrl: process.env.CAMP_API_URL,
-    model: camp.cultural ? "gemini-3.8-flash" : process.env.CAMP_MODEL,
-    apiMode: process.env.CAMP_MODEL_API_MODE ?? "chat_completions",
+    model: camp.cultural
+      ? (cfg.modelProfile?.model ?? "gemini-3.8-flash")
+      : process.env.CAMP_MODEL,
+    apiMode: camp.cultural
+      ? "chat_completions"
+      : (process.env.CAMP_MODEL_API_MODE ?? "chat_completions"),
     modelProxyUrl: process.env.CAMP_MODEL_PROXY_URL,
     text: job.input.waitReason
       ? `Continue the saved task after a quota pause. Inspect existing results and do not repeat completed actions. Original task: ${job.input.text}`

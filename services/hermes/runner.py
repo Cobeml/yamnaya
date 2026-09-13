@@ -127,7 +127,7 @@ def run(payload):
             if getattr(exc, "status_code", None) == 429 and retry:
                 # Hermes opens streams in a helper thread. Exit this isolated child
                 # after the atomic checkpoint; exceptions there are otherwise retried.
-                emit("deferred", retryAt=retry, reason="Waiting for the shared Gemini quota or monthly budget")
+                emit("deferred", retryAt=retry, reason="Waiting for the shared provider quota or budget")
                 os._exit(0)
             raise
     Completions.create = bounded_create

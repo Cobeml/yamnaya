@@ -24,7 +24,7 @@ Influence records distinguish independent citations, discussion, reuse and follo
 
 ## Gemini budget
 
-All four roles use Gemini 3.8 Flash. The finder and cross-referencer receive high reasoning, the writer medium and the marketer low. The operator authorized **$10/month** for Yamnaya, within an existing $15 Google project cap. Model access uses the dedicated `CAMP_GEMINI_API_KEY`; generic-camp provider keys are not fallback credentials.
+The first Discovering Spirits issue uses GPT-6 Astra for finding and cross-referencing and Gemini 3.8 Flash for writing and marketing. A shared, persistent $50 OpenAI reservation ceiling switches research to Flash before the next request would exceed it. See [the launch runbook](spirits-launch.md). Other cultural camps retain Gemini 3.8 Flash. Research receives high reasoning, writing medium and marketing low. The operator authorized **$10/month** for Yamnaya, within an existing $15 Google project cap. Model access uses the dedicated `CAMP_GEMINI_API_KEY`; generic-camp provider keys are not fallback credentials.
 
 The PostgreSQL quota ledger serializes model requests across camps and reserves 90% of configured RPM, input-TPM and daily limits. The supplied Tier 1 limits are 1,000 RPM, 2,000,000 input TPM and 10,000 RPD. Model requests reserve input UTF-8 bytes conservatively as tokens, plus 8,192 output/thinking tokens, at the verified standard prices of $0.75/$3.75 per million. Reservations are not refunded after errors or partial usage, so the usable budget is lower than $10 of actual tokens. Training gets at most 10% of daily request limits and monthly budget. Ledger months/days use Pacific time.
 

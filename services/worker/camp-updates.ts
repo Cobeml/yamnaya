@@ -81,6 +81,11 @@ export async function campUpdates(camps: Camp[], discord: Client | null) {
       .filter((e) =>
         [
           "outbound.drafted",
+          "model.fallback",
+          "workflow.submitted",
+          "publication.published",
+          "publication.deployed",
+          "launch.completed",
           "job.failed",
           "job.indeterminate",
           "workflow.quota",
