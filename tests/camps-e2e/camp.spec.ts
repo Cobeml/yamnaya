@@ -58,6 +58,7 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     page.getByRole("button", { name: "Disconnect Discord", exact: true }),
   ).not.toBeVisible();
+  await page.getByRole("button", { name: "Cube", exact: true }).click();
   await page.getByRole("button", { name: "Start camp", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Pause camp", exact: true }),

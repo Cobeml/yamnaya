@@ -45,3 +45,5 @@ Daily summaries run after 18:00 America/New_York. Error/review alerts and 7-/30-
 ## Validation and limits
 
 Without a bot token, messaging stays disabled and the rest of the worker continues. A missing operator allowlist disables the connector. Invalid credentials/intents log a sanitized setup error; restart after fixing them. No successful live Discord connection or delivery is claimed until the bot is installed and configured. Start verification with an operator command in a simulation camp, confirm its journal entry and acknowledgement, then review one notification. No email or public outreach is part of this setup.
+
+The replacement is deployed to the local worker and https://yamnaya.vercel.app. All 25 unit regressions, TypeScript, ESLint, production builds and both hosted browser workflows pass, including bind/disconnect. Live Discord verification awaits the operator's bot setup.
