@@ -72,6 +72,12 @@ def run(payload):
         ("camp_propose_skill", "Stage a reusable procedure learned from an exercise. Include evidence and verification. This does not activate a skill or grant authority.", {"name": {"type": "string"}, "content": {"type": "string"}}, lambda a: api("skills", {**a, "agentId": agent_id})),
         ("camp_game", "Play one legal tic-tac-toe move (0 through 8). Read the current board first.", {"cell": {"type": "integer"}}, lambda a: api("game", a)),
     ]
+    required_fields = {
+        "camp_source": list(schemas[1][2]), "camp_connection": ["sourceIds", "kind", "claim", "support", "counterexample"],
+        "camp_workflow_submit": ["id", "output"], "camp_tool": ["capability", "arguments"],
+        "camp_edit_publication": ["id", "version", "files"], "camp_request_image": ["publicationId", "prompt", "caption"],
+        "camp_message": ["text"], "camp_board": ["text"], "camp_venue": ["name", "url", "rules", "relevance"],
+        "camp_outbound": ["publicationId", "channel", "destination", "subject", "text"], "camp_propose_skill": ["name", "content"], "camp_game": ["cell"]}
     for name, description, properties, handler in schemas:
 
         def call(args, _handler=handler, _name=name, **_kwargs):
@@ -94,7 +100,7 @@ def run(payload):
 
         registry.register(name=name, toolset="yamnaya", schema={"name": name, "description": description,
             "parameters": {"type": "object", "properties": properties, "additionalProperties": False,
-                **({"required": list(properties)} if name == "camp_source" else {"required": ["id", "output"]} if name == "camp_workflow_submit" else {})}}, handler=call)
+                "required": required_fields.get(name, [])}}, handler=call)
 
     allowed = {name for name, *_ in schemas} | {"memory"}
     for entry in list(registry.get_all_entries()):
@@ -126,6 +132,7 @@ def run(payload):
         tmp.write_text(json.dumps([m for m in messages if m.get("role") not in ["system", "developer"]]))
         tmp.chmod(0o600); tmp.replace(checkpoint)
     def bounded_create(client, *args, **kwargs):
+        client._client.max_retries = 0
         if "messages" in kwargs:
             checkpoint_messages(kwargs["messages"])
         if handoff:

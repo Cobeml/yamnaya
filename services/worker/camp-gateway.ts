@@ -1,4 +1,5 @@
 import { prepareAstraRequest, adaptAstraResponse } from "./camp-astra";
+import { googleUsageTokens } from "@yamnaya/core";
 import { reserveGoogleQuota, releaseGoogleQuota } from "./camp-quota";
 import http from "node:http";
 import {
@@ -28,6 +29,7 @@ export function startCampGateway() {
     .createServer(async (req, res) => {
       let quotaId: string | undefined;
       let astraId: string | undefined;
+      let requestContext: { campId: string; jobId: string; requestNumber: number } | undefined;
       try {
         const url = new URL(req.url ?? "/", "http://gateway");
         if (req.method === "GET" && url.pathname === "/health") {
@@ -163,7 +165,7 @@ export function startCampGateway() {
           input = culturalModelRequest(
             input,
             model,
-            reservation.profile?.reasoning,
+            ["writer", "marketer"].includes(String(token.agentId)) ? "low" : reservation.profile?.reasoning,
           );
           google = model === flashModel;
           if (google) {
@@ -205,6 +207,7 @@ export function startCampGateway() {
             agentId: token.agentId,
           })),
         };
+        requestContext = { campId: String(token.campId), jobId: String(token.jobId), requestNumber: reservation.requestNumber };
         let upstream = await fetch(
           `${base}/${astraId || url.pathname.endsWith("responses") ? "responses" : "chat/completions"}`,
           {
@@ -214,7 +217,7 @@ export function startCampGateway() {
               "Content-Type": "application/json",
             },
             body: JSON.stringify(astraId ? astraRequest : input),
-            signal: AbortSignal.timeout(90000),
+            signal: AbortSignal.timeout(astraId ? 180000 : 90000),
           },
         );
         if (reservation.cultural && upstream.status === 429) {
@@ -333,7 +336,9 @@ export function startCampGateway() {
                 ),
               }
             : null;
-          if (completedQuotaId && receipt)
+          const googleTokens = usage && google ? googleUsageTokens(usage) : null;
+          if (receipt && googleTokens) Object.assign(receipt, googleTokens);
+          if (completedQuotaId && receipt && googleTokens)
             await releaseGoogleQuota(completedQuotaId, undefined, receipt).catch(() => {
               console.error("Gemini usage settlement unavailable; reservation retained");
             });
@@ -360,6 +365,8 @@ export function startCampGateway() {
           res.end();
         }
       } catch (error) {
+        if (requestContext && error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name))
+          await campApi(`${requestContext.campId}/worker/model-error`, { jobId: requestContext.jobId, requestNumber: requestContext.requestNumber, detail: "Model provider timed out. Research is saved; retry when the provider is available." }).catch(() => {});
         if (quotaId) await releaseGoogleQuota(quotaId).catch(() => {});
         if (!res.headersSent)
           res.writeHead(503, { "Content-Type": "application/json" });

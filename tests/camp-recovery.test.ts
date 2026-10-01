@@ -72,3 +72,11 @@ it("preserves a committed handoff when the runtime fails after submission", () =
   expect(c.cultural!.tasks[1].status).toBe("working");
   expect(c.jobs.filter(x => x.status === "queued")).toHaveLength(1);
 });
+it("counts hidden Gemini thinking and withholds review of a rendered scaffold", async () => {
+  const { googleUsageTokens, campActions } = await import("../packages/core/src");
+  expect(googleUsageTokens({ prompt_tokens: 23763, completion_tokens: 0, total_tokens: 25501 })).toEqual({ inputTokens: 23763, outputTokens: 1738 });
+  expect(googleUsageTokens({ prompt_tokens: 10, completion_tokens: 2 })).toBeNull();
+  const c = setup();
+  c.publications[0].build = { id: "b", sourceVersion: 1, digest: "d", sourceDigest: "s", inputDigest: "i", createdAt: now, checks: [{ name: "render", passed: true, detail: "HTML exists" }], files: ["index.html"] };
+  expect(campActions(c).some(a => a.title === "Report ready for review")).toBe(false);
+});

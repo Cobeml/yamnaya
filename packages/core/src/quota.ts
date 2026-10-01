@@ -167,3 +167,12 @@ export function settleQuota(state: QuotaState, id: string, usage: QuotaCharge["u
     if (charge.training) state.spend.trainingMicros += delta;
   }
 }
+
+/** Gemini's compatibility total includes thinking excluded from completion_tokens. */
+export function googleUsageTokens(usage: Record<string, unknown>) {
+  const inputTokens = usage.prompt_tokens;
+  const visible = usage.completion_tokens;
+  const total = usage.total_tokens;
+  if (![inputTokens, visible, total].every(n => Number.isSafeInteger(n) && Number(n) >= 0) || Number(total) < Number(inputTokens) + Number(visible)) return null;
+  return { inputTokens: Number(inputTokens), outputTokens: Number(total) - Number(inputTokens) };
+}

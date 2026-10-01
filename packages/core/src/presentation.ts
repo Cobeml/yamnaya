@@ -11,7 +11,7 @@ export function campActions(camp: Camp): CampAction[] {
   for (const t of camp.cultural?.tasks ?? []) {
     if (t.status === "waiting_input" && !t.dependsOn.length)
       items.push({ id: `task-${t.id}-${t.jobId}`, title: `${camp.agents.find(a => a.id === t.role)?.name ?? t.role} needs help`,
-        detail: t.waitKind === "handoff" || t.output?.startsWith("Agent finished without")
+        detail: t.waitKind === "failed" ? (t.output?.startsWith("Model provider") ? t.output : "The last attempt stopped. Review the issue before continuing.") : t.waitKind === "handoff" || t.output?.startsWith("Agent finished without")
           ? "The research turn ended before handing work to the next agent." : (t.output ?? "Supply the missing input to continue."), target: "task", taskId: t.id });
   }
   for (const j of camp.jobs.filter(j => j.status === "queued")) {
@@ -19,7 +19,8 @@ export function campActions(camp: Camp): CampAction[] {
     if (/key|configur|pricing|shorten/i.test(reason)) items.push({ id: `setup-${j.id}`, title: "Setup needs attention", detail: reason, target: "settings" });
   }
   for (const p of camp.publications) {
-    if (p.build?.sourceVersion === p.version && p.build.checks.every(c => c.passed) && p.approval?.digest !== p.build.digest)
+    const writer = camp.cultural?.tasks.find(t => t.role === "writer" && t.publicationId === p.id);
+    if ((!writer || writer.status === "done") && p.build?.sourceVersion === p.version && p.build.checks.every(c => c.passed) && p.approval?.digest !== p.build.digest)
       items.push({ id: `review-${p.id}-${p.version}-${p.build.digest}`, title: "Report ready for review", detail: p.title, target: "publications" });
   }
   for (const b of camp.imageBriefs ?? []) if (b.status === "awaiting_operator")

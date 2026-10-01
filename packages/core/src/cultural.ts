@@ -473,7 +473,7 @@ export function submitWorkflow(
       throw new DomainError("An evidence-linked connection is required");
     if (t.role === "writer") {
       const p = camp.publications.find((p) => p.id === t.publicationId);
-      if (!p?.build || p.build.sourceVersion !== p.version)
+      if (!p?.build || p.build.sourceVersion !== p.version || (s.launch && p.version <= 1))
         throw new DomainError(
           "Render the current Quarto revision before handoff",
         );

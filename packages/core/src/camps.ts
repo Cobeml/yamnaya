@@ -1097,7 +1097,7 @@ export function completeCampJob(
     task.output =
       job.status === "done"
         ? "Agent finished without a verified handoff. Review its output before resuming."
-        : receipt.detail;
+        : String((job.input.modelErrors as Record<string, string> | undefined)?.[String(job.input.modelRequests)] ?? receipt.detail);
   }
   campEvent(camp, `job.${job.status}`, receipt.detail, agent.id, now, [job.id]);
 }
