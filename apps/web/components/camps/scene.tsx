@@ -1,9 +1,10 @@
 "use client";
 import { useRef, useState, useEffect } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html, ContactShadows, Stars } from "@react-three/drei";
-import { Group, Vector3, MathUtils } from "three";
-import type { CampAgent } from "@yamnaya/core";
+import { Group, Vector3, MathUtils, PerspectiveCamera } from "three";
+import type { CampAgent, agentBubble } from "@yamnaya/core";
+type Bubble = ReturnType<typeof agentBubble>;
 type Position = [number, number, number];
 function Box({
   at = [0, 0, 0],
@@ -25,12 +26,14 @@ function Box({
 }
 function Analyst({
   agent,
+  bubble,
   index,
   selected,
   onSelect,
   reduced,
 }: {
   agent: CampAgent;
+  bubble: Bubble;
   index: number;
   selected: boolean;
   onSelect: () => void;
@@ -39,10 +42,9 @@ function Analyst({
   const root = useRef<Group>(null),
     left = useRef<Group>(null),
     right = useRef<Group>(null);
-  const [walking, setWalking] = useState(false);
   const isCube = agent.activity === "cube";
   const social = ["talking", "playing"].includes(agent.activity);
-  const angle = (index * Math.PI * 2) / 8 + 0.3;
+  const angle = (index * Math.PI * 2) / 4 + 0.3;
   const target = new Vector3(
     isCube
       ? Math.sin(angle) * 2.8
@@ -55,8 +57,6 @@ function Analyst({
   useFrame(({ clock }, delta) => {
     if (!root.current) return;
     const distance = root.current.position.distanceTo(target);
-    const moving = distance > 0.06;
-    if (moving !== walking) setWalking(moving);
     root.current.position.lerp(target, reduced ? 1 : Math.min(delta * 1.4, 1));
     root.current.rotation.y = MathUtils.lerp(
       root.current.rotation.y,
@@ -123,15 +123,16 @@ function Analyst({
         />
       </mesh>
       <Html
-        position={[0, 2, 0]}
+        position={[0, 2.2 + (index % 2) * 0.65, 0]}
         center
         distanceFactor={17}
-        style={{ pointerEvents: "none" }}
+        style={{ pointerEvents: "auto" }}
       >
-        <div className={"camp-person-label " + (selected ? "selected" : "")}>
-          {agent.name}
-          <small>{walking ? "Walking" : agent.activity}</small>
-        </div>
+        <button onClick={onSelect} data-agent-label data-selected={selected} aria-label={`${agent.name}${bubble ? `: ${bubble.text.slice(0, 100)}` : ""}`}
+          className={"camp-person-label " + (selected ? "selected" : "")}>
+          <strong>{agent.name}</strong>
+          {bubble && <span className={"camp-bubble " + bubble.kind}>{bubble.text}</span>}
+        </button>
       </Html>
     </group>
   );
@@ -140,14 +141,16 @@ function Horse({
   at,
   color,
   rotation,
+  reduced,
 }: {
+  reduced: boolean;
   at: Position;
   color: string;
   rotation: number;
 }) {
   const head = useRef<Group>(null);
   useFrame(({ clock }) => {
-    if (head.current)
+    if (head.current && !reduced)
       head.current.rotation.x =
         0.15 + Math.sin(clock.elapsedTime * 0.5 + at[0]) * 0.08;
   });
@@ -228,17 +231,26 @@ function Tree({ at, scale }: { at: Position; scale: number }) {
 }
 function World({
   agents,
+  bubbles,
   selected,
   onAgent,
   onCube,
   reduced,
 }: {
   agents: CampAgent[];
+  bubbles: Record<string, Bubble>;
   selected: string;
   onAgent: (id: string) => void;
   onCube: () => void;
   reduced: boolean;
 }) {
+  const { camera, size } = useThree();
+  useEffect(() => {
+    if (camera instanceof PerspectiveCamera) {
+      camera.fov = size.width / size.height < 0.8 ? 74 : 43;
+      camera.updateProjectionMatrix();
+    }
+  }, [camera, size.width, size.height]);
   return (
     <>
       <color attach="background" args={["#202d30"]} />
@@ -299,9 +311,9 @@ function World({
       <Tent at={[-5, 0, -5]} rotation={0.6} />
       <Tent at={[0, 0, -7]} rotation={0.1} />
       <Tent at={[5.8, 0, -4.5]} rotation={-0.6} />
-      <Horse at={[7.1, 0, 2.7]} rotation={-0.5} color="#947252" />
-      <Horse at={[7.5, 0, -0.1]} rotation={0.3} color="#5e4a3b" />
-      <Horse at={[-8, 0, 0]} rotation={1.3} color="#b4ac95" />
+      <Horse reduced={reduced} at={[7.1, 0, 2.7]} rotation={-0.5} color="#947252" />
+      <Horse reduced={reduced} at={[7.5, 0, -0.1]} rotation={0.3} color="#5e4a3b" />
+      <Horse reduced={reduced} at={[-8, 0, 0]} rotation={1.3} color="#b4ac95" />
       <Box at={[-4, 0.47, 3]} size={[1.4, 0.14, 1.1]} color="#5e4d36" />
       {[-1, 1].map((n) => (
         <Box
@@ -337,7 +349,7 @@ function World({
         </mesh>
         <Html position={[0, 3.6, 0]} center distanceFactor={20}>
           <button className="camp-cube-label" onClick={onCube}>
-            THE CUBE <span>Instruction · Authority</span>
+            Instruct camp
           </button>
         </Html>
       </group>
@@ -345,6 +357,7 @@ function World({
         <Analyst
           key={agent.id}
           agent={agent}
+          bubble={bubbles[agent.id]}
           index={index}
           selected={selected === agent.id}
           onSelect={() => onAgent(agent.id)}
@@ -381,13 +394,29 @@ function World({
 }
 export default function CampScene(props: {
   agents: CampAgent[];
+  bubbles: Record<string, Bubble>;
   selected: string;
   onAgent: (id: string) => void;
   onCube: () => void;
 }) {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
-    setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(media.matches);
+    update(); media.addEventListener("change", update);
+    // Collapse overlapping excerpts, retaining keyboard-accessible names.
+    const timer = setInterval(() => {
+      const labels = Array.from(document.querySelectorAll<HTMLElement>("[data-agent-label]"))
+        .sort((a, b) => Number(b.dataset.selected === "true") - Number(a.dataset.selected === "true"));
+      const placed: DOMRect[] = [];
+      for (const label of labels) {
+        label.classList.remove("overlap");
+        const rect = label.getBoundingClientRect();
+        if (placed.some(r => rect.left < r.right + 8 && rect.right > r.left - 8 && rect.top < r.bottom + 8 && rect.bottom > r.top - 8)) label.classList.add("overlap");
+        else placed.push(rect);
+      }
+    }, 250);
+    return () => { media.removeEventListener("change", update); clearInterval(timer); };
   }, []);
   return (
     <Canvas

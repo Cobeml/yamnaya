@@ -34,11 +34,10 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
     .getByRole("dialog")
     .getByRole("button", { name: "Create camp" })
     .click();
-  await expect(
-    page.getByRole("heading", { name: "The black cube" }),
-  ).toBeVisible();
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await page.getByRole("button", { name: "Setup", exact: true }).click();
+  await expect(page.locator(".camp-rail")).toHaveCount(0);
+  await expect(page.getByText("One ontology.", { exact: false })).toHaveCount(0);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page
     .getByText("Bind a Discord channel or thread", { exact: true })
     .click();
@@ -73,20 +72,25 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
     page.getByRole("button", { name: "Disconnect Discord", exact: true }),
   ).not.toBeVisible();
   await page.unroute(campApi);
+  await page.getByRole("button", { name: "Close panel", exact: true }).click();
   await page.getByRole("button", { name: "Cube", exact: true }).click();
+  await page.getByRole("button", { name: "Close panel", exact: true }).click();
   await page.getByRole("button", { name: "Start camp", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Pause camp", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Cube", exact: true }).click();
   await page
     .getByRole("form", { name: "Create mission" })
     .getByRole("textbox")
     .fill("Develop an evidence-linked report about public infrastructure.");
   await page.getByRole("button", { name: "Set mission", exact: true }).click();
-  await expect(page.locator(".camp-mission-bar")).toContainText(
+  await expect(page.locator(".camp-header-mission")).toContainText(
     "public infrastructure",
   );
-  await page.getByRole("button", { name: "Sites", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Accept finished work", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Close panel", exact: true }).click();
+  await page.getByRole("button", { name: "Reports", exact: true }).click();
   await page.getByLabel("Publication title").fill("Infrastructure fieldnotes");
   await page
     .getByLabel("Existing GitHub repository")
@@ -185,7 +189,8 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     page.getByRole("button", { name: "Publish to GitHub Pages" }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "Setup", exact: true }).click();
+  await page.getByRole("button", { name: "Close panel", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page
     .locator('select[name="capability"]')
     .selectOption("research.fetch");
@@ -199,7 +204,9 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     page.getByRole("button", { name: "Square 1", exact: true }),
   ).toHaveText("X");
+  await page.getByRole("button", { name: "Close panel", exact: true }).click();
   await page.getByRole("button", { name: "Cube", exact: true }).click();
+  await page.getByRole("button", { name: "Close panel", exact: true }).click();
   await expect(page.locator("canvas")).toBeVisible();
   await page.waitForTimeout(2500);
   await page.screenshot({

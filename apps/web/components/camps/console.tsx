@@ -12,7 +12,6 @@ import {
 } from "react";
 import {
   Box,
-  Tent,
   Plus,
   Play,
   Pause,
@@ -20,20 +19,18 @@ import {
   Send,
   GitBranch,
   BookOpen,
-  Users,
   Settings2,
   X,
   Radio,
-  ChevronRight,
   LogOut,
   RefreshCw,
 } from "lucide-react";
-import { capabilityNames, type Camp, type Publication } from "@yamnaya/core";
+import { campActions, campProgress, agentBubble, missionReady, capabilityNames, type Camp, type Publication } from "@yamnaya/core";
 import "./camps.css";
 import GoogleImages from "./google-images";
 const Scene = dynamic(() => import("./scene"), {
   ssr: false,
-  loading: () => <div className="camp-loading">Assembling the camp…</div>,
+  loading: () => <div className="camp-loading">Loading camp…</div>,
 });
 class SceneBoundary extends Component<
   { children: ReactNode },
@@ -45,8 +42,8 @@ class SceneBoundary extends Component<
   }
   render() {
     return this.state.failed ? (
-      <div className="camp-loading">
-        3D rendering is unavailable. All camp controls remain available.
+      <div className="camp-loading camp-scene-unavailable">
+        3D rendering is unavailable. Select an agent below.
       </div>
     ) : (
       this.props.children
@@ -55,7 +52,7 @@ class SceneBoundary extends Component<
 }
 type Summary = Pick<Camp, "id" | "name" | "domain" | "status" | "mode">;
 type Panel =
-  "research" | "cube" | "agents" | "publications" | "activity" | "settings";
+  "research" | "cube" | "agents" | "publications" | "settings" | "none" | "person";
 async function api(route = "", data?: unknown) {
   const response = await fetch("/api/camps" + (route ? "/" + route : ""), {
     method: data === undefined ? "GET" : "POST",
@@ -278,6 +275,7 @@ function PublicationEditor({
               onClick={() =>
                 act(() =>
                   post("publications/approve", {
+                    digest: p.build?.digest,
                     id: p.id,
                     version: p.version,
                   }),
@@ -385,26 +383,26 @@ function LaunchBudget() {
   return (
     <div className="camp-row">
       <div>
-        <strong>First issue model reservations</strong>
+        <strong>Model budget</strong>
         {error && <p>{error}</p>}
         {budget ? (
           <>
             <p>
               Research:{" "}
               {budget.fallback
-                ? "Gemini 3.8 Flash (Astra reservation guard reached)"
+                ? "Gemini 3.8 Flash (Astra fallback active)"
                 : "GPT-6 Astra"}
               . Writing and marketing: Gemini 3.8 Flash.
             </p>
             <p>
-              Astra: ${budget.reservedUsd.toFixed(2)} in cumulative maximum
+              Astra: ${budget.reservedUsd.toFixed(2)} in estimated charges and open
               reservations against the $50 application limit across both camps;
               ${budget.remainingUsd.toFixed(2)} available for new reservations.
             </p>
             {budget.gemini && (
               <p>
                 Gemini ({budget.gemini.month}): $
-                {budget.gemini.reservedUsd.toFixed(2)} in cumulative maximum
+                {budget.gemini.reservedUsd.toFixed(2)} in estimated charges and open
                 reservations against the $
                 {budget.gemini.limitUsd.toFixed(2)}; $
                 {budget.gemini.remainingUsd.toFixed(2)} available for new
@@ -416,8 +414,7 @@ function LaunchBudget() {
               OpenAI reported {budget.reportedInputTokens.toLocaleString()}{" "}
               input / {budget.reportedOutputTokens.toLocaleString()} output
               tokens. {budget.unreportedRequests} requests have no usage
-              receipt. Billed spend is not connected. These holds use maximum
-              request sizes and are not reduced after completion or failure.
+              receipt. Billed spend is not connected. Completed calls use conservatively priced token receipts; calls without receipts retain their maximum hold.
               Reaching this guard does not mean the provider spending limit
               has been reached.
             </p>
@@ -430,6 +427,12 @@ function LaunchBudget() {
   );
 }
 
+function CreateDialog({ children, close }: { children: ReactNode; close: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { ref.current?.showModal(); }, []);
+  return <dialog ref={ref} className="camp-modal camp-create-dialog" aria-labelledby="new-camp-title" onCancel={close} onClose={close}>{children}</dialog>;
+}
+
 export default function CampConsole() {
   const [signedIn, setSignedIn] = useState(false),
     [loading, setLoading] = useState(true),
@@ -437,7 +440,11 @@ export default function CampConsole() {
     [showArchived, setShowArchived] = useState(false),
     [id, setId] = useState(""),
     [camp, setCamp] = useState<Camp | null>(null),
-    [panel, setPanel] = useState<Panel>("cube"),
+    [panel, setPanel] = useState<Panel>("none"),
+    [clock, setClock] = useState(Date.now()),
+    [collapsedActions, setCollapsedActions] = useState<string[]>([]),
+    [actionIndex, setActionIndex] = useState(0),
+    [lastSync, setLastSync] = useState(0),
     [selected, setSelected] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -452,6 +459,8 @@ export default function CampConsole() {
       selectedCampId.current = nextId;
       refreshSequence.current++;
       setId(nextId);
+      setPanel("none");
+      setActionIndex(0);
       latestCamp.current = value;
       setCamp(value);
     },
@@ -488,6 +497,7 @@ export default function CampConsole() {
       }
       latestCamp.current = nextCamp;
       setCamp(nextCamp);
+      setLastSync(Date.now());
     } catch (e) {
       if (sequence === refreshSequence.current)
         setError(e instanceof Error ? e.message : "Camp service unavailable");
@@ -510,6 +520,16 @@ export default function CampConsole() {
       clearTimeout(timer);
     };
   }, [refresh, id]);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogOpen = panel !== "none" || (!signedIn && !loading);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (dialogOpen && !dialogRef.current?.open) dialogRef.current?.showModal();
+    if (!dialogOpen && dialogRef.current?.open) dialogRef.current?.close();
+  }, [dialogOpen]);
   async function act(fn: () => Promise<unknown>) {
     setBusy(true);
     setError("");
@@ -533,7 +553,7 @@ export default function CampConsole() {
   );
   const selectAgent = (agentId: string) => {
     setSelected(agentId);
-    setPanel("agents");
+    setPanel("person");
   };
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -542,122 +562,46 @@ export default function CampConsole() {
       setMessage("");
     });
   }
+  const progress = camp ? campProgress(camp, clock) : null;
+  const actions = camp ? campActions(camp) : [];
+  const currentAction = actions[Math.min(actionIndex, Math.max(0, actions.length - 1))];
+  const pauseControl = camp?.status === "running" && (progress?.active || !!progress?.until || progress?.label === "Ready for review" || progress?.label === "Idle");
+  const stale = signedIn && lastSync > 0 && clock - lastSync > 20000;
+  const bubbles = Object.fromEntries((camp?.agents ?? []).map(a => [a.id, camp && !stale ? agentBubble(camp, a.id, clock) : null]));
+  const mission = camp?.missions.at(-1);
   return (
     <main className="camp-app" aria-busy={busy}>
-      <aside className="camp-rail">
-        <a href="/" className="camp-brand">
-          <span>Y</span>
-          <div>
-            YAMNAYA<small>COMPUTER MANEUVER</small>
-          </div>
-        </a>
-        <div className="camp-rail-heading">
-          YOUR CAMPS
-          <button
-            aria-label="Create camp"
-            onClick={() => setCreating(true)}
-            disabled={!signedIn}
-          >
-            <Plus size={16} />
-          </button>
-        </div>
-        {signedIn && (
-          <label className="camp-muted">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-            />{" "}
-            Show archived camps
-          </label>
-        )}
-        <nav className="camp-list">
-          {camps
-            .filter((c) => showArchived || c.status !== "archived")
-            .map((c) => (
-              <button
-                key={c.id}
-                className={id === c.id ? "active" : ""}
-                onClick={() => {
-                  chooseCamp(c.id);
-                  setSelected("");
-                }}
-              >
-                <Tent size={19} />
-                <span>
-                  {c.name}
-                  <small>
-                    {c.domain} · {c.status}
-                  </small>
-                </span>
-                <ChevronRight size={13} />
-              </button>
-            ))}
-        </nav>
-        {signedIn && !camps.length && (
-          <p className="camp-muted">
-            Establish your first camp. Give it a purpose and a set of tools.
-          </p>
-        )}
-        <div className="camp-rail-bottom">
-          <p>
-            One ontology.
-            <br />
-            Many possible missions.
-          </p>
-          <button
-            onClick={() => void act(() => api("logout", {}))}
-            disabled={!signedIn}
-          >
-            <LogOut size={15} /> Sign out
-          </button>
-        </div>
-      </aside>
       <section className="camp-main">
         <header className="camp-top">
-          <div>
-            <span className="camp-eyebrow">
-              FIELD STATION /{" "}
-              {camp?.domain === "general"
-                ? "COMPUTER MANEUVER"
-                : "RESEARCH & PUBLISHING"}
-            </span>
-            <h1>{camp?.name ?? "An open field"}</h1>
-          </div>
-          <div className="camp-row">
-            <span
-              className={
-                "camp-status " + (camp?.status === "running" ? "live" : "")
-              }
-            >
-              <i />
-              {camp?.status ?? "AWAITING OPERATOR"}
-            </span>
-            {camp && (
-              <button
-                disabled={busy || camp.status === "archived"}
-                onClick={() =>
-                  void act(() =>
-                    post("status", {
-                      status: camp.status === "running" ? "paused" : "running",
-                    }),
-                  )
-                }
-              >
-                {camp.status === "running" ? (
-                  <Pause size={14} />
-                ) : (
-                  <Play size={14} />
-                )}{" "}
-                {camp.status === "running" ? "Pause" : "Start"} camp
-              </button>
-            )}
-          </div>
+          <a href="/" className="camp-wordmark">YAMNAYA</a>
+          <label className="camp-switcher">
+            <span className="sr-only">Camp</span>
+            <select aria-label="Camp" value={id} onChange={e => chooseCamp(e.target.value)} disabled={!signedIn}>
+              {!camps.length && <option value="">Choose camp</option>}
+              {camps.filter(c => showArchived || c.status !== "archived").map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <button aria-label="Create camp" onClick={() => setCreating(true)} disabled={!signedIn}><Plus size={14} />New camp</button>
+          <div className="camp-header-mission" title={mission?.objective}>{mission?.objective.split(/\n|\. /)[0] ?? "Set a mission at the cube"}</div>
+          <span className={"camp-status " + (progress?.active && !stale ? "live" : "")} role="status">
+            <i />{stale ? "Connection lost" : progress?.label ?? "Sign in"}
+            {!stale && progress?.until && <> until {new Date(progress.until).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</>}
+          </span>
+          {camp && <>
+            <button disabled={busy || camp.status === "archived" || stale} onClick={() => void act(() => pauseControl ? post("status", { status: "paused" }) : post("run", {}))}>
+              {pauseControl ? <Pause size={14} /> : <Play size={14} />}
+              {pauseControl ? "Pause camp" : camp.jobs.length ? "Resume camp" : "Start camp"}
+            </button>
+            <button onClick={() => setPanel("cube")} aria-label="Cube"><Box size={15} />Instruct</button>
+            <button onClick={() => setPanel("publications")}><BookOpen size={15} />Reports</button>
+            <button onClick={() => setPanel("settings")} aria-label="Settings"><Settings2 size={15} /></button>
+          </>}
         </header>
         <div className="camp-stage">
           <SceneBoundary>
             <Scene
               agents={camp?.agents ?? []}
+              bubbles={bubbles}
               selected={selected}
               onAgent={selectAgent}
               onCube={() => setPanel("cube")}
@@ -668,56 +612,29 @@ export default function CampConsole() {
             {camp?.mode === "live" ? "LIVE CAMP" : "SIMULATION"}
             <span>Drag to orbit · Scroll to explore</span>
           </div>
-          <div className="camp-scene-caption">
-            <span>THE CAMP IS A PLACE TO THINK.</span>
-            <p>The cube is a place to act.</p>
+          <div className="camp-accessible-agents" aria-label="Camp agents">
+            {camp?.agents.map(a => <button key={a.id} onClick={() => selectAgent(a.id)}>{a.name}{bubbles[a.id] ? `: ${bubbles[a.id]!.text.slice(0, 100)}` : ""}</button>)}
           </div>
-        </div>
-        <div className="camp-mission-bar">
-          <BookOpen size={20} />
-          <div>
-            <small>CURRENT MISSION</small>
-            <p>
-              {camp?.missions.filter((m) => m.status === "active").at(-1)
-                ?.objective ??
-                "No mission yet. Give the camp a question worth investigating."}
-            </p>
-          </div>
-          {camp && (
-            <button onClick={() => setPanel("cube")}>
-              <ArrowUpRight size={17} />
-            </button>
-          )}
         </div>
       </section>
-      <aside
-        className={
-          "camp-inspector " +
-          (["publications", "research"].includes(panel) ? "wide" : "")
-        }
-      >
-        <nav className="camp-tabs">
-          {(
-            [
-              { id: "cube", Icon: Box, label: "Cube" },
-              { id: "agents", Icon: Users, label: "Agents" },
-              { id: "publications", Icon: BookOpen, label: "Sites" },
-              { id: "research", Icon: BookOpen, label: "Research" },
-              { id: "activity", Icon: Radio, label: "Log" },
-              { id: "settings", Icon: Settings2, label: "Setup" },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              className={panel === t.id ? "active" : ""}
-              onClick={() => setPanel(t.id)}
-              title={t.label}
-            >
-              <t.Icon size={17} />
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </nav>
+      {currentAction && <section className="camp-actions" aria-label="Action items">
+        <div className="camp-action-heading">
+          <strong>{camp?.name}</strong>
+          <button aria-label={collapsedActions.includes(currentAction.id) ? "Expand action" : "Collapse action"}
+            onClick={() => setCollapsedActions(ids => ids.includes(currentAction.id) ? ids.filter(x => x !== currentAction.id) : [...ids, currentAction.id])}>
+            {collapsedActions.includes(currentAction.id) ? `${actions.length} pending` : <X size={14} />}
+          </button>
+        </div>
+        {!collapsedActions.includes(currentAction.id) && <>
+          <h3>{currentAction.title}</h3><p className="camp-action-detail">{currentAction.detail}</p>
+          <button className="camp-primary" onClick={() => { setPanel(currentAction.target === "task" ? "cube" : currentAction.target); }}>{currentAction.target === "task" ? "Help agent" : "Review"}</button>
+        </>}
+        {actions.length > 1 && <button onClick={() => setActionIndex(i => (i + 1) % actions.length)}>Next · {Math.min(actionIndex + 1, actions.length)} of {actions.length}</button>}
+      </section>}
+      {error && !dialogOpen && <div className="camp-floating-error" role="alert">{error}<button onClick={() => void refresh()}>Reconnect</button></div>}
+      <dialog ref={dialogRef} className="camp-inspector camp-dialog" aria-label={panel === "none" ? "Sign in" : panel === "publications" ? "Reports" : panel === "cube" ? "Instructions" : "Camp controls"}
+        onCancel={e => { if (!signedIn) e.preventDefault(); else setPanel("none"); }} onClose={() => setPanel("none")}>
+        {signedIn && <button className="camp-close" onClick={() => setPanel("none")} aria-label="Close panel"><X size={18} /></button>}
         {error && (
           <div className="camp-error" role="alert">
             {error}
@@ -727,7 +644,7 @@ export default function CampConsole() {
           </div>
         )}
         {loading ? (
-          <p className="camp-muted">Opening the station…</p>
+          <p className="camp-muted">Loading…</p>
         ) : !signedIn ? (
           <div className="camp-panel">
             <span className="camp-eyebrow">OPERATOR ACCESS</span>
@@ -759,7 +676,7 @@ export default function CampConsole() {
           </div>
         ) : !camp ? (
           <div className="camp-panel">
-            <h2>A purpose needs a place.</h2>
+            <h2>Create a camp</h2>
             <p>Create a camp to bring agents, tools and a mission together.</p>
             <button className="camp-primary" onClick={() => setCreating(true)}>
               Establish a camp
@@ -769,12 +686,11 @@ export default function CampConsole() {
           <div className="camp-panel" key={camp.id}>
             {panel === "cube" && (
               <>
-                <span className="camp-eyebrow">OPERATOR → WORLD</span>
-                <h2>The black cube</h2>
-                <p className="camp-muted">
-                  Instructions, resources and authority enter here. Agents
-                  gather at the cube when they use an external tool.
-                </p>
+                <h2>Instructions</h2>
+                {camp.cultural?.tasks.filter(t => t.status === "waiting_input" && !t.dependsOn.length).map(t => <section className="camp-card" key={t.id}>
+                  <strong>{camp.agents.find(a => a.id === t.role)?.name ?? t.role} needs input</strong><p>{t.output}</p>
+                  <button disabled={busy} onClick={() => void act(() => post("cultural/resume", { id: t.id }))}>Inputs ready — resume</button>
+                </section>)}
                 <Form
                   label="Create mission"
                   onSubmit={(d) =>
@@ -794,33 +710,6 @@ export default function CampConsole() {
                   </label>
                   <button className="camp-primary">Set mission</button>
                 </Form>
-                <div className="camp-section-title">
-                  CAMP CONVERSATION <span>{camp.messages.length}</span>
-                </div>
-                <div className="camp-messages">
-                  {camp.messages.slice(-12).map((m) => (
-                    <article key={m.id}>
-                      <div>
-                        <strong>
-                          {camp.agents.find((a) => a.id === m.senderId)?.name ??
-                            "Operator"}
-                        </strong>
-                        <time>
-                          {new Date(m.at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </time>
-                      </div>
-                      <p>{m.text}</p>
-                    </article>
-                  ))}
-                  {!camp.messages.length && (
-                    <p className="camp-muted">
-                      A quiet camp. Start the conversation.
-                    </p>
-                  )}
-                </div>
                 <form onSubmit={send}>
                   <select
                     aria-label="Message recipient"
@@ -848,7 +737,7 @@ export default function CampConsole() {
                   </button>
                 </form>
                 {camp.missions
-                  .filter((m) => m.status !== "accepted")
+                  .filter((m) => m.status !== "accepted" && missionReady(camp, m.id))
                   .map((m) => (
                     <div className="camp-card" key={m.id}>
                       <p>{m.objective}</p>
@@ -857,12 +746,17 @@ export default function CampConsole() {
                           void act(() => post("missions/accept", { id: m.id }))
                         }
                       >
-                        Accept mission outcome
+                        Accept finished work
                       </button>
                     </div>
                   ))}
               </>
             )}
+            {panel === "person" && agent && <>
+              <h2>{agent.name}</h2><p>{agent.role}</p>
+              <p className="camp-current-message">{bubbles[agent.id]?.text ?? "Idle"}</p>
+              <button onClick={() => { setRecipient(agent.id); setPanel("cube"); }}>Give instruction</button>
+            </>}
             {panel === "agents" && (
               <>
                 <span className="camp-eyebrow">PEOPLE & LINEAGE</span>
@@ -1098,76 +992,6 @@ export default function CampConsole() {
                 </details>
               </>
             )}
-            {panel === "activity" && (
-              <>
-                <span className="camp-eyebrow">OBSERVATION & RECEIPTS</span>
-                <h2>The camp journal</h2>
-                <div className="camp-stats">
-                  <span>
-                    <strong>
-                      {camp.jobs.filter((j) => j.status === "done").length}
-                    </strong>{" "}
-                    Completed
-                  </span>
-                  <span>
-                    <strong>{camp.evidence.length}</strong> Sources
-                  </span>
-                  <span>
-                    <strong>
-                      {
-                        camp.jobs.filter((j) =>
-                          ["failed", "indeterminate"].includes(j.status),
-                        ).length
-                      }
-                    </strong>{" "}
-                    To inspect
-                  </span>
-                </div>
-                {camp.jobs
-                  .filter((j) => ["failed", "indeterminate"].includes(j.status))
-                  .slice(-8)
-                  .map((j) => (
-                    <div className="camp-card" key={j.id}>
-                      <strong>
-                        {j.status}: {(j.input.capability as string) ?? j.kind}
-                      </strong>
-                      <p>{j.receipt?.detail}</p>
-                      <code>{j.id}</code>
-                    </div>
-                  ))}
-                {camp.evidence.map((e) => (
-                  <details key={e.id}>
-                    <summary>{e.title}</summary>
-                    <a href={e.url} target="_blank" rel="noreferrer">
-                      Source <ArrowUpRight size={12} />
-                    </a>
-                    <p>{e.excerpt}</p>
-                    <code>{e.digest.slice(0, 24)}</code>
-                  </details>
-                ))}
-                <ol className="camp-events">
-                  {camp.events
-                    .slice(-60)
-                    .reverse()
-                    .map((e) => (
-                      <li key={e.id}>
-                        <time>
-                          {new Date(e.at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </time>
-                        <div>
-                          <p>{e.detail}</p>
-                          <small>
-                            {e.actorId} · {e.type}
-                          </small>
-                        </div>
-                      </li>
-                    ))}
-                </ol>
-              </>
-            )}
             {panel === "research" && (
               <CulturalPanel
                 camp={camp}
@@ -1179,7 +1003,11 @@ export default function CampConsole() {
             {panel === "settings" && (
               <>
                 <span className="camp-eyebrow">RESOURCES & AUTHORITY</span>
-                <h2>Equip the camp</h2>
+                <h2>Settings</h2>
+                {camp.status === "running" && <button onClick={() => void act(() => post("status", { status: "paused" }))}>Pause camp</button>}
+                <nav className="camp-tabs"><button onClick={() => setPanel("agents")}>Agents</button><button onClick={() => setPanel("research")}>Research controls</button></nav>
+                <label><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} /> Show archived camps</label>
+                <button onClick={() => void act(() => api("logout", {}))}><LogOut size={15} />Sign out</button>
                 <div className="camp-section-title">STANDING TOOL GRANTS</div>
                 {camp.grants
                   .filter((g) => !g.revoked)
@@ -1370,15 +1198,9 @@ export default function CampConsole() {
             )}
           </div>
         )}
-      </aside>
+      </dialog>
       {creating && (
-        <div className="camp-modal-backdrop">
-          <section
-            className="camp-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="new-camp-title"
-          >
+        <CreateDialog close={() => setCreating(false)}>
             <button
               className="camp-close"
               onClick={() => setCreating(false)}
@@ -1386,8 +1208,7 @@ export default function CampConsole() {
             >
               <X size={18} />
             </button>
-            <span className="camp-eyebrow">A NEW PURPOSE</span>
-            <h2 id="new-camp-title">Establish a camp.</h2>
+            <h2 id="new-camp-title">New camp</h2>
             <Form
               onSubmit={(d) =>
                 void act(async () => {
@@ -1439,8 +1260,7 @@ export default function CampConsole() {
                 Create camp <Plus size={15} />
               </button>
             </Form>
-          </section>
-        </div>
+        </CreateDialog>
       )}
     </main>
   );

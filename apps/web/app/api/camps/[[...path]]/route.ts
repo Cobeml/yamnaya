@@ -641,7 +641,10 @@ export async function POST(req: NextRequest, context: Context) {
             actor,
             now,
           );
-        if (operation === "publications/approve")
+        if (operation === "publications/approve") {
+          const publication = camp.publications.find(p => p.id === input.id);
+          if (!publication?.build || publication.build.digest !== input.digest)
+            throw new DomainError("The preview changed; review the current build", "CONFLICT", 409);
           return approvePublication(
             camp,
             z.string().parse(input.id),
@@ -649,6 +652,7 @@ export async function POST(req: NextRequest, context: Context) {
             actor,
             now,
           );
+        }
         if (operation === "publications/rollback") {
           requireCampOperator(camp, actor);
           const p = camp.publications.find((p) => p.id === input.id);

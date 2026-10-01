@@ -86,7 +86,9 @@ test("two cultural camps share bounded correspondence and review exact publicati
         { timeout: 90000 },
       )
       .toBe("done");
+    const built = await (await page.request.get("/api/camps/" + a.id)).json();
     await post(a.id + "/publications/approve", {
+      digest: built.publications.find((x: { id: string }) => x.id === p.id).build.digest,
       id: p.id,
       version: p.version,
     });
@@ -115,13 +117,9 @@ test("two cultural camps share bounded correspondence and review exact publicati
     );
     expect(stale.ok()).toBe(false);
     await page.reload();
-    await page
-      .getByRole("button", { name: new RegExp("Cultural test America") })
-      .click();
-    await page
-      .getByRole("button", { name: "Research", exact: true })
-      .first()
-      .click();
+    await page.getByLabel("Camp", { exact: true }).selectOption(a.id);
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Research controls", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "American research workshop" }),
     ).toBeVisible();

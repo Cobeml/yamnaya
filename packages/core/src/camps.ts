@@ -706,6 +706,8 @@ export function createPublication(
     history: [],
   };
   camp.publications.push(p);
+  const mission = camp.missions.filter(m => m.status === "active").at(-1);
+  if (mission) mission.publicationIds.push(p.id);
   campEvent(camp, "publication.created", p.title, actor.id, now, [p.id]);
   return p;
 }

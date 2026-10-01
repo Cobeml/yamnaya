@@ -39,6 +39,7 @@ it("rejects premature mission acceptance and expires old dialogue", () => {
   const c = setup(); const m = addMission(c, "Write this report", owner, now);
   m.publicationIds = [c.publications[0].id];
   expect(() => acceptMission(c, m.id, owner, now)).toThrow("render");
+  c.status = "running";
   c.messages.push({ id: "m", at: now, senderId: "finder", recipientId: "camp", text: "I found a passage." });
   expect(agentBubble(c, "finder", Date.parse(now))?.text).toBe("I found a passage.");
   expect(agentBubble(c, "finder", Date.parse(now) + 31000)?.kind).not.toBe("dialogue");

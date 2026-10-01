@@ -47,6 +47,8 @@ export function reserveQuota(
   },
   now: number,
 ): { allowed: boolean; retryAt: number; reason: string } {
+  if (state.charges?.some(c => c.id === request.id) || state.requests.some(r => r.id === request.id))
+    return { allowed: true, retryAt: now, reason: "Already reserved" };
   const day = pacificDay(now);
   state.requests = state.requests.filter(
     (r) => pacificDay(r.at) === day || r.at > now - 60000,

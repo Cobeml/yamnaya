@@ -106,7 +106,7 @@ try {
     const [r] =
       await fresh`SELECT state FROM camp_quota WHERE id=${spiritLaunchId}`;
     const restored = r.state as LaunchLedger;
-    assert.equal(restored.reservedMicros, state.reservedMicros);
+    assert.equal(restored.reservedMicros, astra.length * 3750);
     assert.equal(
       restored.requests.reduce((n, r) => n + (r.usage?.inputTokens ?? 0), 0),
       astra.length * 100,

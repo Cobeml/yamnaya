@@ -14,6 +14,10 @@ export function campActions(camp: Camp): CampAction[] {
         detail: t.waitKind === "handoff" || t.output?.startsWith("Agent finished without")
           ? "The research turn ended before handing work to the next agent." : (t.output ?? "Supply the missing input to continue."), target: "task", taskId: t.id });
   }
+  for (const j of camp.jobs.filter(j => j.status === "queued")) {
+    const reason = String(j.input.waitReason ?? "");
+    if (/key|configur|pricing|shorten/i.test(reason)) items.push({ id: `setup-${j.id}`, title: "Setup needs attention", detail: reason, target: "settings" });
+  }
   for (const p of camp.publications) {
     if (p.build?.sourceVersion === p.version && p.build.checks.every(c => c.passed) && p.approval?.digest !== p.build.digest)
       items.push({ id: `review-${p.id}-${p.version}-${p.build.digest}`, title: "Report ready for review", detail: p.title, target: "publications" });
@@ -40,13 +44,14 @@ export function campProgress(camp: Camp, now: number) {
   return { label: "Idle", active: false };
 }
 export function agentBubble(camp: Camp, agentId: string, now: number): { text: string; kind: "activity" | "dialogue" | "waiting" } | null {
+  if (camp.status !== "running") return null;
   const message = camp.messages.filter(m => m.senderId === agentId && now - Date.parse(m.at) >= 0 && now - Date.parse(m.at) < 30000).at(-1);
   if (message) return { text: message.text, kind: "dialogue" };
   const job = camp.jobs.filter(j => j.agentId === agentId && j.status === "leased" && Date.parse(j.leaseUntil ?? "") > now).at(-1);
   if (job) {
-    const event = camp.events.filter(e => e.actorId === agentId && e.refs.includes(job.id) && e.type === "tool.start").at(-1);
+    const event = camp.events.filter(e => e.actorId === agentId && e.refs.includes(job.id) && ["tool.start", "tool.end"].includes(e.type)).at(-1);
     const names: Record<string, string> = { finder: "Reading sources", referencer: "Connecting the passages", writer: "Drafting the report", marketer: "Preparing outreach" };
-    return { text: event?.detail.startsWith("camp_tool:") ? "Using a research tool" : names[agentId] ?? "Working on the mission", kind: "activity" };
+    return { text: event?.type === "tool.start" && event.detail.startsWith("camp_tool:") ? "Using a research tool" : names[agentId] ?? "Working on the mission", kind: "activity" };
   }
   const task = camp.cultural?.tasks.find(t => t.role === agentId && t.status !== "done");
   if (task?.status === "waiting_quota") return { text: "Waiting for model allowance", kind: "waiting" };

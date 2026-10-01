@@ -320,7 +320,7 @@ export function startCampGateway() {
               /* Non-JSON SSE framing. */
             }
           }
-          const receipt = usage
+          const receipt = usage && [usage.input_tokens ?? usage.prompt_tokens, usage.output_tokens ?? usage.completion_tokens].every(n => Number.isSafeInteger(n) && Number(n) >= 0)
             ? {
                 responseId,
                 model: returnedModel,
