@@ -141,10 +141,12 @@ it("routes authenticated research through Astra then Flash with usage receipts a
       expect(body.n).toBeUndefined();
     }
     await vi.waitFor(() =>
-      expect(mocks.usage).toHaveBeenCalledWith("reserved", {
+      expect(mocks.usage).toHaveBeenCalledWith("reserved", expect.objectContaining({
         inputTokens: 12,
         outputTokens: 8,
-      }),
+        responseId: "resp_fixture",
+        model: "gpt-6-astra",
+      })),
     );
     expect(mocks.api).toHaveBeenCalledWith(
       "america/worker/model-fallback",
@@ -198,7 +200,7 @@ it("routes authenticated research through Astra then Flash with usage receipts a
       expect(mocks.api).toHaveBeenCalledWith(
         "america/worker/model-result",
         expect.objectContaining({
-          usage: { inputTokens: 666, outputTokens: 7 },
+          usage: expect.objectContaining({ inputTokens: 666, outputTokens: 7 }),
         }),
       ),
     );

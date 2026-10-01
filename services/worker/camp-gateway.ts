@@ -284,6 +284,7 @@ export function startCampGateway() {
           "Cache-Control": "no-store",
         });
         if (upstream.body) {
+          const completedQuotaId = quotaId;
           let tail = "";
           let responseBytes = 0;
           try {
@@ -304,11 +305,15 @@ export function startCampGateway() {
             quotaId = undefined;
           }
           let usage: Record<string, unknown> | undefined;
+          let responseId: string | undefined;
+          let returnedModel: string | undefined;
           for (const line of tail.split("\n")) {
             try {
               const value = JSON.parse(
                 line.startsWith("data: ") ? line.slice(6) : line,
               );
+              responseId = value.response?.id ?? value.id ?? responseId;
+              returnedModel = value.response?.model ?? value.model ?? returnedModel;
               if (value.usage || value.response?.usage)
                 usage = value.usage ?? value.response.usage;
             } catch {
@@ -317,14 +322,21 @@ export function startCampGateway() {
           }
           const receipt = usage
             ? {
+                responseId,
+                model: returnedModel,
+                details: usage,
                 inputTokens: Number(
-                  usage.input_tokens ?? usage.prompt_tokens ?? 0,
+                  usage.input_tokens ?? usage.prompt_tokens,
                 ),
                 outputTokens: Number(
-                  usage.output_tokens ?? usage.completion_tokens ?? 0,
+                  usage.output_tokens ?? usage.completion_tokens,
                 ),
               }
             : null;
+          if (completedQuotaId && receipt)
+            await releaseGoogleQuota(completedQuotaId, undefined, receipt).catch(() => {
+              console.error("Gemini usage settlement unavailable; reservation retained");
+            });
           if (astraId && receipt)
             await recordAstraUsage(astraId, receipt).catch(() => {
               console.error(

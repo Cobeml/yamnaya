@@ -89,7 +89,7 @@ def run(payload):
 
         registry.register(name=name, toolset="yamnaya", schema={"name": name, "description": description,
             "parameters": {"type": "object", "properties": properties, "additionalProperties": False,
-                **({"required": list(properties)} if name == "camp_source" else {})}}, handler=call)
+                **({"required": list(properties)} if name == "camp_source" else {"required": ["id", "output"]} if name == "camp_workflow_submit" else {})}}, handler=call)
 
     allowed = {name for name, *_ in schemas} | {"memory"}
     for entry in list(registry.get_all_entries()):

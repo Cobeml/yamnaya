@@ -18,6 +18,8 @@ import {
   advanceWorkflow,
   submitWorkflow,
   resumeWorkflow,
+  runCamp,
+  acceptMission,
   addVenue,
   draftOutbound,
   approveOutbound,
@@ -591,6 +593,10 @@ export async function POST(req: NextRequest, context: Context) {
           return addEvaluationExample(camp, input, actor, now);
         if (operation === "cultural/evaluations")
           return recordEvaluation(camp, input, actor, now);
+        if (operation === "run") {
+          runCamp(camp, actor, now);
+          return { status: camp.status };
+        }
         if (operation === "status") {
           setCampStatus(
             camp,
@@ -609,17 +615,8 @@ export async function POST(req: NextRequest, context: Context) {
             actor,
             now,
           );
-        if (operation === "missions/accept") {
-          requireCampOperator(camp, actor);
-          const m = camp.missions.find((m) => m.id === input.id);
-          if (!m) throw new DomainError("Mission not found", "NOT_FOUND", 404);
-          m.status = "accepted";
-          m.acceptedBy = actor.id;
-          campEvent(camp, "mission.accepted", m.objective, actor.id, now, [
-            m.id,
-          ]);
-          return m;
-        }
+        if (operation === "missions/accept")
+          return acceptMission(camp, String(input.id), actor, now);
         if (operation === "grants") return addGrant(camp, input, actor, now);
         if (operation === "grants/revoke") {
           revokeGrant(camp, z.string().parse(input.id), actor, now);

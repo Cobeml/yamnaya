@@ -25,7 +25,8 @@ export interface AstraResponse {
   id: string;
   status: string;
   output: OutputItem[];
-  usage?: { input_tokens: number; output_tokens: number };
+  model?: string;
+  usage?: { input_tokens: number; output_tokens: number; input_tokens_details?: Record<string, unknown>; output_tokens_details?: Record<string, unknown> };
 }
 export function astraResponsesRequest(
   chat: ReturnType<typeof culturalModelRequest>,
@@ -120,12 +121,14 @@ export function astraChatResponse(value: AstraResponse, stream: boolean) {
         : "stop";
   const usage = value.usage
     ? {
+        prompt_tokens_details: value.usage.input_tokens_details,
+        completion_tokens_details: value.usage.output_tokens_details,
         prompt_tokens: value.usage.input_tokens,
         completion_tokens: value.usage.output_tokens,
         total_tokens: value.usage.input_tokens + value.usage.output_tokens,
       }
     : undefined;
-  const common = { id: value.id, model: astraModel, created: 0 };
+  const common = { id: value.id, model: value.model ?? astraModel, created: 0 };
   const contexts = calls.length
     ? [
         {

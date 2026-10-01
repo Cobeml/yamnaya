@@ -64,7 +64,8 @@ it("deduplicates reservation and usage receipts without refunding unknown effect
   expect(launchSummary(state).unreportedRequests).toBe(1);
   recordLaunchUsage(state, "same", { inputTokens: 100, outputTokens: 40 });
   recordLaunchUsage(state, "same", { inputTokens: 200, outputTokens: 90 });
-  expect(state.reservedMicros).toBe(reserved);
+  expect(state.reservedMicros).toBe(3250);
+  expect(state.reservedMicros).toBeLessThan(reserved);
   expect(launchSummary(state).reportedInputTokens).toBe(100);
   expect(() =>
     recordLaunchUsage(state, "missing", { inputTokens: 1, outputTokens: 1 }),

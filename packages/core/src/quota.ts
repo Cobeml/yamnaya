@@ -5,7 +5,13 @@ export interface QuotaLimits {
   freeTierConfirmed: boolean;
   monthlyBudgetMicros?: number;
 }
+export interface QuotaCharge {
+  id: string; month: string; training: boolean; reservedMicros: number;
+  settledMicros?: number;
+  usage?: { inputTokens: number; outputTokens: number; responseId?: string; model?: string; details?: Record<string, unknown> };
+}
 export interface QuotaState {
+  charges?: QuotaCharge[];
   requests: { id: string; at: number; tokens: number; training: boolean }[];
   active?: { id: string; until: number };
   blockedUntil?: number;
@@ -138,8 +144,24 @@ export function reserveQuota(
     spent.reservedMicros += cost!;
     if (request.training) spent.trainingMicros += cost!;
     state.spend = spent;
+    state.charges ??= [];
+    state.charges.push({ id: request.id, month, training: request.training, reservedMicros: cost! });
   }
   state.requests.push({ ...request, at: now });
   state.active = { id: request.id, until: now + 100000 };
   return { allowed: true, retryAt: now, reason: "Reserved" };
+}
+
+export function settleQuota(state: QuotaState, id: string, usage: QuotaCharge["usage"]) {
+  const charge = state.charges?.find(c => c.id === id);
+  if (!charge || charge.settledMicros !== undefined || !usage) return;
+  if (![usage.inputTokens, usage.outputTokens].every(n => Number.isSafeInteger(n) && n >= 0))
+    throw new Error("Invalid provider usage");
+  charge.usage = usage;
+  charge.settledMicros = Math.ceil(usage.inputTokens * 0.75 + usage.outputTokens * 3.75);
+  if (state.spend?.month === charge.month) {
+    const delta = charge.settledMicros - charge.reservedMicros;
+    state.spend.reservedMicros += delta;
+    if (charge.training) state.spend.trainingMicros += delta;
+  }
 }

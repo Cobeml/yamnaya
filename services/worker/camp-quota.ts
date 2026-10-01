@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { campDatabase } from "../../apps/web/lib/camp-store";
-import { reserveQuota, type QuotaState } from "@yamnaya/core";
+import { reserveQuota, settleQuota, type QuotaState, type QuotaCharge } from "@yamnaya/core";
 export async function reserveGoogleQuota(
   tokens: number,
   training: boolean,
@@ -47,13 +47,14 @@ export async function reserveGoogleQuota(
   });
   return { ...result, id };
 }
-export async function releaseGoogleQuota(id: string, blockedUntil?: number) {
+export async function releaseGoogleQuota(id: string, blockedUntil?: number, usage?: QuotaCharge["usage"]) {
   const db = campDatabase();
   await db.begin(async (tx) => {
     const [row] =
       await tx`SELECT state FROM camp_quota WHERE id='google-free' FOR UPDATE`;
     if (!row) return;
     const s = row.state as QuotaState;
+    settleQuota(s, id, usage);
     if (s.active?.id === id) delete s.active;
     if (blockedUntil)
       s.blockedUntil = Math.max(s.blockedUntil ?? 0, blockedUntil);

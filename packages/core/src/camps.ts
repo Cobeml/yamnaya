@@ -481,6 +481,7 @@ export function setCampStatus(
     for (const task of camp.cultural?.tasks ?? []) {
       if (["working", "waiting_quota"].includes(task.status)) {
         task.status = "waiting_input";
+        task.waitKind = "paused";
         task.dependsOn = [];
         task.output =
           "Camp paused. Resume this task after supplying any new instructions.";
@@ -941,6 +942,7 @@ export function claimCampJob(
       const task = camp.cultural?.tasks.find((t) => t.jobId === j.id);
       if (task && task.status !== "done") {
         task.status = "waiting_input";
+        task.waitKind = "paused";
         task.dependsOn = [];
         task.output =
           "Worker lease expired. Inspect completed effects before resuming.";
@@ -1084,7 +1086,11 @@ export function completeCampJob(
     (task.status === "working" ||
       (task.status === "done" && job.status !== "done"))
   ) {
-    task.status = "waiting_input";
+    const recover = job.status === "done" && camp.status === "running" &&
+      (task.recoveryAttempts ?? 0) < 2;
+    task.status = recover ? "ready" : "waiting_input";
+    task.waitKind = job.status === "done" ? "handoff" : "failed";
+    if (recover) task.recoveryAttempts = (task.recoveryAttempts ?? 0) + 1;
     task.dependsOn = [];
     task.output =
       job.status === "done"

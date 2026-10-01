@@ -315,7 +315,8 @@ it("pausing releases workflow dependencies and broadcast messages do not wake fo
     { summary: "Need more input" },
     now,
   );
-  expect(tasks[0].status).toBe("waiting_input");
+  expect(tasks[0].status).toBe("ready");
   advanceWorkflow(c, now);
+  expect(tasks[0].recoveryAttempts).toBe(1);
   expect(tasks[1].status).toBe("waiting_input");
 });

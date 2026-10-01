@@ -39,6 +39,8 @@ export interface WorkflowTask {
   output?: string;
   notBefore?: string;
   createdAt: string;
+  recoveryAttempts?: number;
+  waitKind?: "input" | "handoff" | "paused" | "failed";
 }
 export interface SourceDossier {
   id: string;
@@ -435,7 +437,7 @@ export function advanceWorkflow(camp: Camp, now: string) {
       const job = queueCampTurn(
         camp,
         t.role,
-        `Workflow task ${t.id} for publication ${t.publicationId}. ${procedures[t.role]}\nRead cultural/resources and previous task outputs. After verifying useful work, propose any reusable procedural improvement with camp_propose_skill and describe the evidence; proposals require comparative review before activation. Submit your handoff using camp_workflow_submit with this task ID. If inputs are insufficient, use camp_workflow_submit with wait=true and explain the missing input.`,
+        `Workflow task ${t.id} for publication ${t.publicationId}. ${t.recoveryAttempts ? "HANDOFF RECOVERY: First read current cultural state and retained results. Do not repeat completed research or external effects. Submit a valid camp_workflow_submit handoff now if the prerequisites are met; otherwise explicitly report the missing input with wait=true. " : ""}${procedures[t.role]}\nRead cultural/resources and previous task outputs. After verifying useful work, propose any reusable procedural improvement with camp_propose_skill and describe the evidence; proposals require comparative review before activation. Submit your handoff using camp_workflow_submit with this task ID. If inputs are insufficient, use camp_workflow_submit with wait=true and explain the missing input.`,
         "agent",
         now,
       );
@@ -482,6 +484,7 @@ export function submitWorkflow(
   }
   t.output = input.output;
   t.status = input.wait ? "waiting_input" : "done";
+  t.waitKind = input.wait ? "input" : undefined;
   if (input.wait) t.dependsOn = [];
   event(
     camp,
@@ -522,6 +525,7 @@ export function resumeWorkflow(
     throw new DomainError("Previous role handoff is required before resuming");
   delete t.notBefore;
   t.status = "ready";
+  delete t.waitKind;
   event(camp, "workflow.resumed", "Operator supplied new input", actor, now, [
     taskId,
   ]);
@@ -777,4 +781,43 @@ export function culturalResources(camp: Camp, actor: CampActor) {
     s.evaluations = [];
   }
   return s;
+}
+
+/** Operator intent to run is distinct from acceptance of finished work. */
+export function runCamp(camp: Camp, actor: CampActor, now: string) {
+  requireCampOperator(camp, actor);
+  if (camp.status !== "running") setCampStatus(camp, "running", actor, now);
+  for (const task of camp.cultural?.tasks ?? []) {
+    if (task.status !== "waiting_input" || task.dependsOn.length) continue;
+    if (camp.jobs.some(j => j.id === task.jobId && ["queued", "leased"].includes(j.status))) continue;
+    // An explicit request for information or an uncertain effect needs its own decision.
+    const prior = camp.jobs.find(j => j.id === task.jobId);
+    if (prior?.status === "indeterminate" || task.waitKind === "input" || task.waitKind === "failed") continue;
+    if (task.waitKind === "paused" || task.waitKind === "handoff" ||
+        task.output === "Agent finished without a verified handoff. Review its output before resuming.") {
+      if ((task.recoveryAttempts ?? 0) >= 2 && task.waitKind !== "paused") continue;
+      task.recoveryAttempts = (task.recoveryAttempts ?? 0) + 1;
+      resumeWorkflow(camp, task.id, actor, now);
+    }
+  }
+  advanceWorkflow(camp, now);
+}
+export function missionReady(camp: Camp, missionId: string) {
+  const mission = camp.missions.find(m => m.id === missionId);
+  if (!mission || !mission.publicationIds.length) return false;
+  return mission.publicationIds.every(id => {
+    const p = camp.publications.find(p => p.id === id);
+    return p?.build && p.build.sourceVersion === p.version && p.build.checks.every(c => c.passed) &&
+      !(camp.cultural?.tasks ?? []).some(t => t.publicationId === id && t.role !== "marketer" && t.status !== "done");
+  });
+}
+export function acceptMission(camp: Camp, id: string, actor: CampActor, now: string) {
+  requireCampOperator(camp, actor);
+  if (!missionReady(camp, id)) throw new DomainError("Finish and render the report before accepting the outcome");
+  const mission = camp.missions.find(m => m.id === id)!;
+  if (mission.status === "accepted") return mission;
+  mission.status = "accepted";
+  mission.acceptedBy = actor.id;
+  campEvent(camp, "mission.accepted", mission.objective, actor.id, now, [id]);
+  return mission;
 }

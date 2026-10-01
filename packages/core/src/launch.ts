@@ -11,7 +11,8 @@ export interface LaunchRequest {
   jobId: string;
   reservedMicros: number;
   at: number;
-  usage?: { inputTokens: number; outputTokens: number };
+  settledMicros?: number;
+  usage?: { inputTokens: number; outputTokens: number; responseId?: string; model?: string; details?: Record<string, unknown> };
 }
 export interface LaunchLedger {
   reservedMicros: number;
@@ -167,6 +168,9 @@ export function recordLaunchUsage(
   )
     throw new DomainError("Invalid provider usage");
   request.usage = usage;
+  // Highest approved input rate; no inferred cache discount. Output includes reasoning.
+  request.settledMicros = Math.ceil(usage.inputTokens * 12.5 + usage.outputTokens * 50);
+  state.reservedMicros += request.settledMicros - request.reservedMicros;
 }
 export function launchSummary(state: LaunchLedger) {
   return {
