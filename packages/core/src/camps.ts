@@ -1086,7 +1086,7 @@ export function completeCampJob(
   if (
     task &&
     (task.status === "working" ||
-      (task.status === "done" && job.status !== "done"))
+      (task.status === "done" && job.status === "indeterminate"))
   ) {
     const recover = job.status === "done" && camp.status === "running" &&
       (task.recoveryAttempts ?? 0) < 2;

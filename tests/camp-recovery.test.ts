@@ -59,3 +59,16 @@ it("settles a monthly hold exactly once and does not refund unknown or previous-
   settleQuota(s, "b", { inputTokens: 1000, outputTokens: 100 });
   expect(s.spend.reservedMicros).toBe(123);
 });
+it("preserves a committed handoff when the runtime fails after submission", () => {
+  const c = setup(); runCamp(c, owner, now);
+  const j = claimCampJob(c, "w", now, 2)!;
+  // The submit endpoint has already validated the role's handoff prerequisites.
+  c.cultural!.tasks[0].status = "done";
+  c.cultural!.tasks[0].output = "Verified sources";
+  completeCampJob(c, j.id, "w", { outcome: "failed", detail: "Closing model response failed" }, {}, now);
+  expect(c.cultural!.tasks[0].status).toBe("done");
+  expect(c.cultural!.tasks[0].output).toBe("Verified sources");
+  advanceWorkflow(c, now);
+  expect(c.cultural!.tasks[1].status).toBe("working");
+  expect(c.jobs.filter(x => x.status === "queued")).toHaveLength(1);
+});

@@ -89,6 +89,7 @@ async function agentTurn(work: CampWork) {
     campId: camp.id,
     agentId: agent.id,
     configurationId: cfg.id,
+    ...(job.input.handoffRecovery ? { checkpointId: `${cfg.id}-${job.input.taskId}-recovery-${job.input.handoffRecovery}` } : {}),
     sessionId: `${camp.id}-${agent.id}`,
     token: work.token,
     apiUrl: process.env.CAMP_API_URL,

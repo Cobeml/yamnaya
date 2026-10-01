@@ -401,7 +401,8 @@ export function advanceWorkflow(camp: Camp, now: string) {
         const prev = s.tasks.find((x) => x.id === id);
         return (
           prev?.status === "done" &&
-          camp.jobs.find((j) => j.id === prev.jobId)?.status === "done"
+          ["done", "failed"].includes(camp.jobs.find((j) => j.id === prev.jobId)?.status ?? "") &&
+          !camp.jobs.some(j => j.kind === "tool" && ["queued", "leased", "indeterminate"].includes(j.status))
         );
       })
     )
@@ -442,6 +443,7 @@ export function advanceWorkflow(camp: Camp, now: string) {
         now,
       );
       job.input.taskId = t.id;
+      if (t.recoveryAttempts) job.input.handoffRecovery = t.recoveryAttempts;
       t.jobId = job.id;
       t.status = "working";
     }
@@ -788,6 +790,14 @@ export function runCamp(camp: Camp, actor: CampActor, now: string) {
   requireCampOperator(camp, actor);
   if (camp.status !== "running") setCampStatus(camp, "running", actor, now);
   for (const task of camp.cultural?.tasks ?? []) {
+    const lastJob = camp.jobs.find(j => j.id === task.jobId);
+    const submitted = camp.events.filter(e => e.type === "workflow.submitted" && e.actorId === task.role && e.refs.includes(task.id) && e.at >= (lastJob?.createdAt ?? now)).at(-1);
+    if (task.status === "waiting_input" && lastJob?.status === "failed" && submitted) {
+      task.status = "done";
+      task.output = submitted.detail;
+      delete task.waitKind;
+      campEvent(camp, "workflow.handoff-restored", "Preserved a verified handoff despite the later runtime failure", actor.id, now, [task.id, lastJob.id]);
+    }
     if (task.status !== "waiting_input" || task.dependsOn.length) continue;
     if (camp.jobs.some(j => j.id === task.jobId && ["queued", "leased"].includes(j.status))) continue;
     // An explicit request for information or an uncertain effect needs its own decision.

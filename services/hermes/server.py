@@ -135,6 +135,8 @@ class Handler(BaseHTTPRequestHandler):
             for name in ["invocationId", "campId", "agentId", "configurationId", "sessionId"]:
                 valid_id(payload[name])
             # Caller is the trusted worker. Agent text cannot select arbitrary runtime limits or executables.
+            if "checkpointId" in payload:
+                valid_id(payload["checkpointId"])
             payload["maxIterations"] = min(12, max(1, int(payload.get("maxIterations", 12))))
             payload["timeoutSeconds"] = min(300, max(10, int(payload.get("timeoutSeconds", 300))))
             identity = payload["campId"] + "/" + payload["agentId"]

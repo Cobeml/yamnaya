@@ -1,11 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "dotenv";
 import { campDatabase, mutateCamp, readCamp } from "../../apps/web/lib/camp-store";
-import { astraReservation, campEvent, launchBudgetMicros, missionReady, runCamp, spiritLaunchId, type LaunchLedger } from "@yamnaya/core";
+import { astraReservation, campEvent, launchBudgetMicros, missionReady, resumeWorkflow, runCamp, spiritLaunchId, type LaunchLedger } from "@yamnaya/core";
 // One-time deployment repair. Unknown historical provider outcomes keep their full holds.
 const local = parse(await readFile(".env.camps"));
 process.env.CAMP_DATABASE_URL = local.CAMP_DATABASE_URL;
 const apply = process.argv.includes("--apply");
+const repairRuntime = process.argv.includes("--runtime-repair");
 try {
   const db = campDatabase();
   await db.begin(async tx => {
@@ -39,9 +40,17 @@ try {
         delete m.acceptedBy;
         campEvent(c, "mission.reopened", "Corrected premature outcome acceptance; operator requested continuation to a rendered issue.", actor.id, now, [m.id]);
       }
+      if (repairRuntime) {
+        const task = c.cultural.tasks.find(t => t.jobId === "job-278-27" && t.status === "waiting_input" && t.waitKind === "failed");
+        if (c.id === "camp-cultural-china" && task && (task.recoveryAttempts ?? 0) < 2) {
+          task.recoveryAttempts = (task.recoveryAttempts ?? 0) + 1;
+          resumeWorkflow(c, task.id, actor, now);
+          campEvent(c, "workflow.context-recovered", "Continue from retained research in an isolated recovery checkpoint; oversized prior transcript preserved.", actor.id, now, [task.id]);
+        }
+      }
       runCamp(c, actor, now);
       return { camp: id, status: c.status, tasks: c.cultural.tasks.map(t => ({ role: t.role, status: t.status, recoveries: t.recoveryAttempts ?? 0 })) };
     };
-    console.log(JSON.stringify(apply ? await mutateCamp(id, repair, { key: "campsite-handoff-recovery-v1" }) : repair(await readCamp(id))));
+    console.log(JSON.stringify(apply ? (await mutateCamp(id, repair, { key: repairRuntime ? "campsite-runtime-repair-v2" : "campsite-handoff-recovery-v1" })).result : repair(await readCamp(id))));
   }
 } finally { await campDatabase().end(); }

@@ -23,7 +23,8 @@ def run(payload):
     token = payload["token"]
     api_base = payload["apiUrl"].rstrip("/") + "/api/camps/" + camp_id
     profile = Path(os.environ["HERMES_HOME"])
-    checkpoint = profile / ("history-" + payload["configurationId"] + ".json")
+    checkpoint = profile / ("history-" + payload.get("checkpointId", payload["configurationId"]) + ".json")
+    handoff = {}
 
     def api(route="", data=None):
         request = urllib.request.Request(api_base + ("/" + route if route else ""),
@@ -76,7 +77,11 @@ def run(payload):
         def call(args, _handler=handler, _name=name, **_kwargs):
             emit("tool.start", tool=_name)
             try:
+                if handoff:
+                    return json.dumps({"status": "handed_off", "detail": "The workflow handoff is committed; this turn is finished."})
                 result = _handler(args)
+                if _name == "camp_workflow_submit" and isinstance(result, dict) and result.get("status") in ["done", "waiting_input"]:
+                    handoff.update(result)
                 text = json.dumps(result, ensure_ascii=False)
                 if len(text) > 48000:
                     # Keep tool JSON valid rather than allowing upstream truncation.
@@ -123,6 +128,11 @@ def run(payload):
     def bounded_create(client, *args, **kwargs):
         if "messages" in kwargs:
             checkpoint_messages(kwargs["messages"])
+        if handoff:
+            # Tool results are now checkpointed. Stop before paying for a redundant
+            # closing response, which can exceed context or lose a valid handoff.
+            emit("completed", summary=str(handoff.get("output", "Workflow handoff recorded"))[:12000])
+            os._exit(0)
         try:
             return original_create(client, *args, **kwargs)
         except Exception as exc:
@@ -149,12 +159,12 @@ def run(payload):
     signal.signal(signal.SIGTERM, lambda *_: agent.interrupt(hard_cancel=True))
     try:
         result = agent.run_conversation(payload["text"], conversation_history=history, task_id=payload["invocationId"])
-        if result.get("error") or result.get("failed") or result.get("partial") or not result.get("completed", False):
+        if not handoff and (result.get("error") or result.get("failed") or result.get("partial") or not result.get("completed", False)):
             raise RuntimeError("Hermes turn did not complete successfully")
         messages = result.get("messages", [])
         tmp = checkpoint.with_suffix(".tmp")
         tmp.write_text(json.dumps(messages)); tmp.chmod(0o600); tmp.replace(checkpoint)
-        emit("completed", summary=str(result.get("final_response", ""))[:12000])
+        emit("completed", summary=str(handoff.get("output") or result.get("final_response", ""))[:12000])
     finally:
         agent.close()
 

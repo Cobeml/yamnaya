@@ -25,6 +25,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path.endswith("/cultural/sources"):
             self.send_response(400); self.send_header("Content-Type", "application/json"); self.end_headers()
             self.wfile.write(json.dumps({"error":"Invalid request", "details":"translation: expected string"}).encode()); return
+        if self.path.endswith("/cultural/submit"):
+            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
+            self.wfile.write(json.dumps({"result": {"id": "task-fixture", "status": "done", "output": "Verified handoff"}, "revision": 2}).encode()); return
         if self.path.endswith("/tools"):
             self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers()
             self.wfile.write(json.dumps({"result": {"id": "job-fixture", "status": "queued"}, "revision": 1}).encode()); return
@@ -42,7 +45,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if used and pause_after_tool:
             self.send_response(429); self.send_header("Content-Type", "application/json"); self.send_header("X-Camp-Retry-At", "2099-01-01T00:00:00.000Z"); self.end_headers()
             self.wfile.write(json.dumps({"error":{"message":"Quota fixture", "type":"camp_quota"}}).encode()); return
-        message = {"role": "assistant", "content": "Contract test complete."} if used else {"role": "assistant", "content": None, "tool_calls": [{"id": "call_observe", "type": "function", "function": {"name": requested_tool, "arguments": json.dumps({"capability":"research.fetch", "arguments":{"url":"https://example.org"}}) if requested_tool == "camp_tool" else "{}"}}]}
+        message = {"role": "assistant", "content": "Contract test complete."} if used else {"role": "assistant", "content": None, "tool_calls": [{"id": "call_observe", "type": "function", "function": {"name": requested_tool, "arguments": json.dumps({"capability":"research.fetch", "arguments":{"url":"https://example.org"}}) if requested_tool == "camp_tool" else json.dumps({"id":"task-fixture", "output":"Verified handoff"}) if requested_tool == "camp_workflow_submit" else "{}"}}]}
         response = {"id": "test", "object": "chat.completion", "model": "fixture-model", "created": 0, "choices": [{"index": 0, "message": message, "finish_reason": "stop" if used else "tool_calls"}], "usage": {"prompt_tokens": 40, "completion_tokens": 10, "total_tokens": 50}}
         if data.get("stream"):
             self.send_response(200); self.send_header("Content-Type", "text/event-stream"); self.end_headers()
@@ -79,6 +82,19 @@ with tempfile.TemporaryDirectory(prefix="hermes-contract-") as home:
     assert events[-1]["kind"] == "completed", events
     assert (Path(home) / "history-ada-v1.json").exists()
     assert len(calls) == 2, len(calls)
+    requested_tool = "camp_workflow_submit"
+    payload["checkpointId"] = "ada-handoff-v1"
+    prior_history = (Path(home) / "history-ada-v1.json").read_bytes()
+    before_handoff = len(calls)
+    submitted = subprocess.run([str(source / ".venv/bin/python"), str(runner)], input=json.dumps(payload), text=True, capture_output=True, env=env, cwd=source, timeout=60)
+    assert submitted.returncode == 0, submitted.stdout[-1000:]
+    assert '"kind": "completed"' in submitted.stdout, submitted.stdout[-1000:]
+    assert len(calls) == before_handoff + 1, "Paid for a redundant final response after handoff"
+    handoff_history = json.loads((Path(home) / "history-ada-handoff-v1.json").read_text())
+    assert any(m.get("role") == "tool" and "Verified handoff" in str(m.get("content")) for m in handoff_history)
+    assert (Path(home) / "history-ada-v1.json").read_bytes() == prior_history
+    del payload["checkpointId"]
+    print("PASS: isolated recovery retains prior history; verified handoff ends without another model request.")
     requested_tool = "camp_tool"
     payload["configurationId"] = "ada-tool-v1"
     external = subprocess.run([str(source / ".venv/bin/python"), str(runner)], input=json.dumps(payload), text=True, capture_output=True, env=env, cwd=source, timeout=60)
