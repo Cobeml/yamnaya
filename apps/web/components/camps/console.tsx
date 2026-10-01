@@ -601,6 +601,7 @@ export default function CampConsole() {
           <SceneBoundary>
             <Scene
               agents={camp?.agents ?? []}
+              suspended={dialogOpen || creating}
               bubbles={bubbles}
               selected={selected}
               onAgent={selectAgent}

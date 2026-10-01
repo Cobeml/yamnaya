@@ -14,6 +14,7 @@ import {
   reserveAstra,
   recordAstraUsage,
 } from "../../services/worker/camp-launch";
+import { reserveGoogleQuota, releaseGoogleQuota } from "../../services/worker/camp-quota";
 import { campDatabase } from "../../apps/web/lib/camp-store";
 import {
   adaptAstraResponse,
@@ -115,6 +116,14 @@ try {
   } finally {
     await fresh.end();
   }
+  Object.assign(process.env, { CAMP_GEMINI_FREE_TIER: "false", CAMP_GEMINI_MONTHLY_USD: "10", CAMP_GEMINI_RPM: "100", CAMP_GEMINI_TPM: "100000", CAMP_GEMINI_RPD: "1000" });
+  const google = await reserveGoogleQuota(10000, false);
+  assert(google.allowed);
+  await Promise.all(Array.from({ length: 12 }, () => releaseGoogleQuota(google.id, undefined, { inputTokens: 1000, outputTokens: 100 })));
+  const [googleRow] = await db`SELECT state FROM camp_quota WHERE id='google-free'`;
+  assert.equal(googleRow.state.spend.reservedMicros, 1125);
+  assert.equal(googleRow.state.charges.length, 1);
+  console.log("Verified 12 concurrent Gemini settlement attempts charge exactly once.");
   console.log(
     `Verified 60 concurrent reservations, one durable fallback, ${astra.length} deduplicated usage receipts, and fresh-connection persistence.`,
   );

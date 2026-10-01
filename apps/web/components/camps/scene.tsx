@@ -392,7 +392,18 @@ function World({
     </>
   );
 }
+function FrameClock({ paused }: { paused: boolean }) {
+  const invalidate = useThree(s => s.invalidate);
+  useEffect(() => {
+    invalidate();
+    if (paused) return;
+    const timer = setInterval(() => { if (!document.hidden) invalidate(); }, 50);
+    return () => clearInterval(timer);
+  }, [paused, invalidate]);
+  return null;
+}
 export default function CampScene(props: {
+  suspended: boolean;
   agents: CampAgent[];
   bubbles: Record<string, Bubble>;
   selected: string;
@@ -420,12 +431,14 @@ export default function CampScene(props: {
   }, []);
   return (
     <Canvas
+      frameloop="demand"
       shadows="percentage"
       camera={{ position: [16, 15, 21], fov: 43 }}
       dpr={[1, 1.5]}
       gl={{ antialias: true }}
       aria-label="Interactive 3D camp: suited analysts, horses, tents and the instruction cube"
     >
+      <FrameClock paused={props.suspended || reduced} />
       <World {...props} reduced={reduced} />
     </Canvas>
   );

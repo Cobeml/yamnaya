@@ -112,13 +112,13 @@ export function astraReservation(
   if (
     !Number.isSafeInteger(inputBytes) ||
     inputBytes < 1 ||
-    inputBytes > 180_000 ||
+    inputBytes > 250_000 ||
     !Number.isSafeInteger(outputTokens) ||
     outputTokens < 1 ||
     outputTokens > launchOutputTokens
   )
     throw new DomainError(
-      "Shorten the model context to 180 KB before continuing",
+      "Shorten the model context to 250 KB before continuing",
     );
   return Math.ceil((inputBytes + 8192) * 12.5 + outputTokens * 50);
 }
