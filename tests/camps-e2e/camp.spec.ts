@@ -101,6 +101,7 @@ test("operator builds a camp, scopes authority and edits a Quarto publication", 
   await expect(
     page.getByRole("heading", { name: "Infrastructure fieldnotes" }),
   ).toBeVisible();
+  await page.getByText("Edit sources", { exact: true }).click();
   await page
     .getByLabel("Quarto source")
     .fill(

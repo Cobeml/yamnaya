@@ -170,9 +170,8 @@ function PublicationEditor({
       </div>
       <h3>{p.title}</h3>
       <GoogleImages camp={camp} publication={p} act={act} post={post} />
-      <p className="camp-muted">
-        Quarto sources → rendered preview → GitHub review → Pages
-      </p>
+      <details>
+        <summary>Edit sources</summary>
       <div className="camp-row">
         <select
           aria-label="Publication file"
@@ -236,8 +235,10 @@ function PublicationEditor({
           Render site
         </button>
       </div>
+      </details>
       {p.build && (
         <div className="camp-build">
+          <details><summary>Build details</summary>
           <strong>Build of revision {p.build.sourceVersion}</strong>
           {p.build.checks.map((c) => (
             <p key={c.name}>
@@ -245,6 +246,7 @@ function PublicationEditor({
             </p>
           ))}
           <code title={p.build.digest}>{p.build.digest.slice(0, 24)}…</code>
+          </details>
           {camp.discord && (
             <details>
               <summary>Approval command for Discord</summary>

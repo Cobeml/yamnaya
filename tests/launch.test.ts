@@ -143,7 +143,8 @@ it("bounds priced requests and strips attempts to select premium or unmetered ef
       "high",
     ),
   ).toThrow();
-  expect(() => astraReservation(180001)).toThrow();
+  expect(astraReservation(250000)).toBeGreaterThan(astraReservation(180000));
+  expect(() => astraReservation(250001)).toThrow();
 });
 
 it("prepares existing pilots once, preserves workflows, and requires operator authority", () => {
